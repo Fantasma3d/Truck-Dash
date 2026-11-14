@@ -1,0 +1,5 @@
+out/
+android/font_data.h
+*.o
+*.keystore
+__pycache__/

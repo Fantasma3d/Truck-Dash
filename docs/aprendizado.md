@@ -1,0 +1,44 @@
+# Diário de aprendizado — TruckDash
+
+## 14/11/2026 — do zero ao painel funcionando
+
+### 1. Engenharia reversa de um app pronto
+- Analisei o APK do **SIM Dashboard** para entender como esse tipo de app funciona:
+  - **No PC:** um servidor .NET instala um plugin próprio dentro do ETS2 e se anuncia na rede por **mDNS** (`_simdb._udp`).
+  - **No celular:** o app exige **Android 5+** (`minSdk 21`) e licença, por isso não rodaria no meu tablet com Android 4.
+- **Lição:** antes de copiar uma ideia, entender a arquitetura dela, ou seja, quem fala com quem e por qual caminho.
+
+### 2. Telemetria do ETS2 (SCS SDK)
+- O jogo carrega DLLs da pasta `bin\win_x64\plugins` e chama `scs_telemetry_init`.
+- O plugin se registra em **eventos**: início e fim de quadro, pausa e configuração.
+  - Os **canais** (como `truck.speed` e `truck.engine.rpm`) entregam os valores numéricos.
+  - O evento de **configuração** traz os dados fixos: marca, modelo, capacidade do tanque, rpm máximo.
+- **Lição:** ler a especificação oficial com cuidado. O tamanho e a ordem dos campos das estruturas precisam bater exatamente.
+
+### 3. Redes: UDP, broadcast, unicast e TCP
+- **Broadcast** (`x.x.x.255`) só alcança a mesma sub-rede. Meu PC (`192.168.213.x`) e o tablet (`192.168.18.x`) estavam em redes diferentes, por isso os dados não chegavam.
+- **Descoberta automática:** o tablet manda um "oi" e o PC passa a mandar direto para ele.
+- **USB via ADB:** `adb forward tcp:45456 tcp:45456` cria um túnel TCP pelo cabo.
+- **TCP é um fluxo de bytes, não de mensagens:** cada pacote precisa de tamanho conhecido para ser remontado do outro lado.
+
+### 4. Android sem Android Studio
+- Uma `NativeActivity` permite fazer um app inteiro em C, sem Java.
+- Montei o APK "na mão":
+  - o manifesto em XML **binário**;
+  - a tabela de recursos (`resources.arsc`);
+  - as bibliotecas `.so` para ARM e x86;
+  - a assinatura **SHA1**, porque o Android anterior ao 4.3 não aceita SHA‑256.
+- **Lição:** um APK é só um ZIP com regras. Conhecer o formato permite compilar sem as ferramentas oficiais.
+
+### 5. Gráficos por software
+- Desenhar círculos, arcos, polígonos e texto com **antialiasing** pixel a pixel.
+- **Otimização:** o fundo (mostradores e números) é desenhado uma vez só. A cada quadro só os ponteiros e os valores são redesenhados.
+
+### 6. Depuração de verdade
+- O jogo "não abria": pelo `game.log.txt` e pelo `game.crash.txt` descobri que o culpado era um **mod** ainda sendo baixado, e não o plugin.
+- **Lição:** ler os logs antes de culpar o código novo.
+
+## Próximos passos
+- [ ] Testar no tablet real e medir o FPS
+- [ ] Integrar com o **button box** (Arduino Nano)
+- [ ] Novos painéis e um modo noturno
