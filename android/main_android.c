@@ -94,7 +94,10 @@ static void process_input(void) {
         if (AInputQueue_preDispatchEvent(g_queue, ev)) continue;
         int handled = 0;
         if (AInputEvent_getType(ev) == AINPUT_EVENT_TYPE_MOTION) {
-            if ((AMotionEvent_getAction(ev) & 0xff) == 1 /* UP */) app_tap();
+            static double down_t;
+            int act = AMotionEvent_getAction(ev) & 0xff;
+            if (act == 0 /* DOWN */) down_t = now_s();
+            else if (act == 1 /* UP */) app_tap(now_s() - down_t > 0.7);
             handled = 1;
         }
         /* teclas (ex.: voltar) ficam com o sistema */

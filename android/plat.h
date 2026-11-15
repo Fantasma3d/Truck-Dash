@@ -8,6 +8,8 @@
 int snprintf(char *, size_t, const char *, ...);
 int vsnprintf(char *, size_t, const char *, va_list);
 size_t strlen(const char *);
+int strcmp(const char *, const char *);
+int strncmp(const char *, const char *, size_t);
 void *memcpy(void *, const void *, size_t);
 void *memset(void *, int, size_t);
 int memcmp(const void *, const void *, size_t);

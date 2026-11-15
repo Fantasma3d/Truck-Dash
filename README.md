@@ -23,9 +23,26 @@ A ideia do TD é aproveitar o aparelho que está parado na gaveta. Por isso ele 
 | **Unidades** | Automáticas: km/h, km, litros e bar no ETS2; mph, milhas, galões e psi no ATS |
 | **Instalação** | Sem licença, sem conta, sem Google Play e sem programa servidor no PC. Só a DLL no jogo e o APK no tablet |
 
-## Painéis
+## Painéis originais do jogo (novo)
 
-São 10 painéis, escolhidos automaticamente pela marca do caminhão. Também dá para fixar um tocando na tela.
+O TD consegue mostrar **o mesmo painel digital que aparece dentro da cabine no jogo**: Volvo FH 2021 e 2024, Scania S/R 2016, Scania 2025, Scania S 2024e, DAF 2021 e XD, DAF XF, MAN TGX 2020, Iveco S-Way, Renault T, Mercedes Actros e outros, cerca de 30 modelos. Cada um tem as várias telas que o caminhão real oferece.
+
+Para isso existe um **interpretador do formato de painéis da SCS**, os arquivos `ui/dashboard/*.sii`:
+- mesmo layout, cores e fontes SDF do jogo;
+- barras, ponteiros e ícones ligados aos IDs oficiais (velocidade 1020, rpm 1700, piloto automático 1240...);
+- escolha automática do painel pelo modelo do caminhão.
+
+O conversor `tools/tdpack.py` transforma os arquivos extraídos do **seu** jogo em pacotes `.tdp`, que vão para `TruckDash/paineis/` no tablet. **Os pacotes contêm arte da SCS e são só para uso pessoal; por isso não estão neste repositório.**
+
+| Toque | O que faz |
+|---|---|
+| Toque curto (painel original) | Passa para a próxima tela do painel |
+| Toque longo (0,7 s) | Alterna entre o painel original e os painéis do TruckDash |
+| Toque curto (painéis do TruckDash) | Troca o tema (Automático → Scania → Volvo → ...) |
+
+## Painéis do TruckDash
+
+Se não houver painel original para o caminhão, por exemplo em mods ou nos americanos, entram os 10 painéis próprios do TD, escolhidos automaticamente pela marca do caminhão. Também dá para fixar um tocando na tela.
 
 - Scania S/R (nova geração) e Scania R/Streamline
 - Volvo FH
@@ -77,6 +94,7 @@ ETS2/ATS ──SDK de telemetria──> TruckDash.dll ──UDP (Wi‑Fi) ou TCP
   - `clang` e `lld`, compilando contra bibliotecas "falsas" só para resolver os símbolos;
   - um gerador próprio do `AndroidManifest.xml` binário e do `resources.arsc`;
   - assinatura v1 (SHA1), que o Android 4 aceita.
+- **Painéis originais (`android/scsdash.c`, `tools/tdpack.py`, `tools/tdpreview.py`):** o conversor lê as definições do painel (`.sii`), as texturas (`.dds`) e as fontes SDF do jogo e gera um pacote compacto. O app interpreta esse pacote com o mesmo algoritmo de layout da prévia em Python. O fundo fica em cache; a cada quadro só os elementos que mudam são redesenhados.
 - **Testes (`test/`):** um "jogo falso", que carrega o plugin e simula a telemetria, e um "tablet falso", que roda o app no Linux e salva os quadros como imagem.
 
 ## Compilar

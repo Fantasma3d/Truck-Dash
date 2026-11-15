@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
         setf("truck.engine.rpm", (float)(1100 + 500 * sin(t * 2.1)));
         seti("truck.displayed.gear", 8 + (int)(sp / 20)); seti("truck.engine.gear", 8 + (int)(sp / 20));
         setb("truck.light.lblinker", ((int)(t * 2.5)) % 2);
-        if (f == frames / 2) send_truck("volvo", "Volvo", "vehicle.volvo.fh16_2012", "FH16");
+        if (f == frames / 2) send_truck("volvo", "Volvo", "vehicle.volvo.fh_2024", "FH");
         ev_cb[SCS_TELEMETRY_EVENT_frame_end](SCS_TELEMETRY_EVENT_frame_end, 0, 0);
         usleep(16666);
     }

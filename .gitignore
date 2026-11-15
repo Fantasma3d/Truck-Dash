@@ -3,3 +3,5 @@ android/font_data.h
 *.o
 *.keystore
 __pycache__/
+*.tdp
+painel_base/

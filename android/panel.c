@@ -86,6 +86,7 @@ int panel_auto_theme(const td_packet *p) {
 const char *panel_theme_name(int t) { return (t >= 0 && t < THEME_COUNT) ? TH[t].name : "?"; }
 
 static int is_ats(const dash_t *d) { return d->p.game_id[0] == 'a'; }
+int panel_is_ats(const dash_t *d) { return is_ats(d); }
 
 static float speed_max(const dash_t *d) { return is_ats(d) ? 80.0f : 125.0f; }
 static float rpm_limit(const dash_t *d) { float l = d->p.rpm_limit; return (l < 1000 || l > 8000) ? 2500.0f : l; }
@@ -651,6 +652,24 @@ void panel_draw_dynamic(surf_t *s, dash_t *d) {
         float w = r_text_width(F_SANS, L(24), d->toast) + L(40);
         r_round_rect(s, X(500) - w / 2, Y(250), w, L(56), L(14), HEX(0x000000), 0.8f);
         r_text(s, F_SANS, X(500), Y(286), L(24), d->toast, HEX(0xffffff), AL_CENTER);
+    }
+}
+
+/* luzes-espia e faixa de informacoes nas margens em volta de um painel real */
+void panel_draw_extras(surf_t *s, dash_t *d, float top_h, float bot_y, float bot_h) {
+    const theme_t *t = &TH[9];
+    if (top_h >= 28) {
+        float sc = s->w / 1000.0f;
+        if (top_h / 84.0f < sc) sc = top_h / 84.0f;
+        S = sc; OX = (s->w - 1000.0f * S) * 0.5f; OY = (top_h - 84.0f * S) * 0.5f;
+        draw_tell_static(s, t);
+        draw_tell_dynamic(s, d);
+    }
+    if (bot_h >= 28) {
+        float sc = s->w / 1000.0f;
+        if (bot_h / 60.0f < sc) sc = bot_h / 60.0f;
+        S = sc; OX = (s->w - 1000.0f * S) * 0.5f; OY = bot_y + (bot_h - 60.0f * S) * 0.5f - 530.0f * S;
+        info_strip(s, d, t, 548);
     }
 }
 

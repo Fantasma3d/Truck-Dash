@@ -38,7 +38,30 @@
 - O jogo "não abria": pelo `game.log.txt` e pelo `game.crash.txt` descobri que o culpado era um **mod** ainda sendo baixado, e não o plugin.
 - **Lição:** ler os logs antes de culpar o código novo.
 
+## 14/11/2026 (noite) — painéis de verdade
+
+### 7. Respeitar a proteção dos outros
+- O SIM Dashboard baixa os painéis de um servidor e os criptografa (`libsimdb.so`). Os mods da Scania e do FH6 também eram protegidos.
+- **Decisão:** não quebrar a proteção de ninguém. Usar a fonte original: os arquivos do próprio jogo, abertos com o extrator.
+
+### 8. Engenharia reversa de um formato de UI
+- `ui/dashboard/*.sii`: uma árvore de janelas, grupos, textos, barras e ponteiros, com coordenadas, camadas e IDs.
+- **Mini-linguagem de marcação:** `<img>`, `<font>`, `<color>`, `<offset>`, `<align>`, `<ret>`, `<margin>`.
+  - `<ret>` volta ao canto do elemento; as posições vêm todas dos `<offset>`.
+  - Coordenadas podem ser frações (`0.5`) ou pixels (`p256`).
+- **Fontes SDF/MSDF:** a distância até a borda é a mediana dos canais R, G e B, o que mantém o texto nítido em qualquer tamanho.
+- **Ponteiros:** a textura inteira gira em volta de um pivô, a 1 unidade do painel por pixel.
+- **Barras:** o retângulo cresce conforme o valor e corta o conteúdo.
+- **Lição:** escrever primeiro uma prévia em Python, comparar com o jogo e só depois portar para C.
+
+### 9. Bugs que ensinaram algo
+- A ordem de desenho importa: uma "máscara" desenhada por cima de uma barra cria os segmentos. Se a máscara vai para o fundo em cache, a barra vira um bloco sólido.
+- Um fundo escuro semitransparente não é um fundo opaco: precisa considerar o alfa da cor.
+- O script de build montou o APK com a biblioteca antiga depois de uma falha de compilação. Agora ele apaga a biblioteca antes de compilar.
+
 ## Próximos passos
 - [ ] Testar no tablet real e medir o FPS
 - [ ] Integrar com o **button box** (Arduino Nano)
-- [ ] Novos painéis e um modo noturno
+- [x] Painéis originais do jogo
+- [ ] Ajustar os painéis antigos que ainda têm sobreposições (MAN eTGX, Actros 2014)
+- [ ] Modo noturno

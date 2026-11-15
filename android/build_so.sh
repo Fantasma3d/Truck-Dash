@@ -4,7 +4,7 @@ set -e
 cd "$(dirname "$0")"
 OUT=../out/android
 mkdir -p $OUT
-SRC="main_android.c app.c net.c panel.c render.c aeabi.c"
+SRC="main_android.c app.c net.c panel.c render.c scsdash.c aeabi.c"
 for ABI in armeabi-v7a x86; do
   case $ABI in
     armeabi-v7a) T="--target=armv7a-linux-androideabi16 -march=armv7-a -mfloat-abi=softfp -mfpu=vfpv3-d16 -mthumb" ;;

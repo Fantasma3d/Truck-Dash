@@ -29,5 +29,7 @@ uint32_t panel_static_key(const dash_t *d, int w, int h);
 void panel_draw_static(surf_t *s, const dash_t *d);
 void panel_draw_dynamic(surf_t *s, dash_t *d);
 void panel_update(dash_t *d, float dt);
+void panel_draw_extras(surf_t *s, dash_t *d, float top_h, float bot_y, float bot_h);
+int panel_is_ats(const dash_t *d);
 
 #endif
