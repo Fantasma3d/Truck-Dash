@@ -418,6 +418,9 @@ static void parse_line(skin_t *k, int line, char **tok, int n) {
         if (!it) return;
         it->kind = K_IMG; it->line = line; it->telas = k->cur_mask;
         it->x = kvf(tok + 2, n - 2, "x", 0); it->y = kvf(tok + 2, n - 2, "y", 0);
+        /* opcional: redimensiona e centraliza (logo). altura/largura valem para o desenho, sem as bordas transparentes */
+        it->cx = kvf(tok + 2, n - 2, "cx", 0); it->cy = kvf(tok + 2, n - 2, "cy", 0);
+        it->size = kvf(tok + 2, n - 2, "altura", 0); it->a0 = kvf(tok + 2, n - 2, "largura", 0);
         img_load(k, line, tok[1], &it->on, 1);
         return;
     }
@@ -541,6 +544,12 @@ static void prepare(skin_t *k, int w, int h) {
         item_t *it = &k->it[i];
         if (it->kind == K_TEXTO) continue;
         if (it->kind == K_PONTEIRO) make_sprite(&it->on, 0, 0, s, 0, 0, 1 << 20, 1 << 20, &it->s_on);   /* so reduz; a posicao vem do pivo */
+        else if (it->kind == K_IMG && (it->size > 0 || it->a0 > 0) && it->on.w > 0) {
+            float f = it->size > 0 ? it->size / it->on.h : it->a0 / it->on.w;
+            if (it->size > 0 && it->a0 > 0 && it->a0 / it->on.w < f) f = it->a0 / it->on.w;   /* cabe nos dois */
+            img_t c = it->on; c.ox = c.oy = 0;
+            make_sprite(&c, 0, 0, s * f, k->ox + (it->cx - it->on.w * f * 0.5f) * s, k->oy + (it->cy - it->on.h * f * 0.5f) * s, w, h, &it->s_on);
+        }
         else make_sprite(&it->on, it->x, it->y, s, k->ox, k->oy, w, h, &it->s_on);
         if (it->kind == K_LUZ && it->off.px) make_sprite(&it->off, it->x, it->y, s, k->ox, k->oy, w, h, &it->s_off);
     }

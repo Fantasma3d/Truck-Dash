@@ -15,6 +15,7 @@ Linhas que começam com `#` são comentários. Os itens são desenhados na ordem
 | `fundo <png>` | Imagem de fundo; define o tamanho do painel |
 | `tela todas` ou `tela 1 3` | As linhas seguintes valem só para essas telas do carrossel |
 | `imagem <png> [x= y=]` | Imagem fixa (rótulos, ícones, indicador da tela) |
+| `imagem <png> cx= cy= altura= [largura=]` | Imagem redimensionada e centralizada em (cx, cy); a medida vale para o desenho, sem as bordas transparentes (ex.: logo) |
 | `luz <dado> on=<png> off=<png> [x= y=] [inverte=sim]` | Mostra o PNG aceso quando o dado está ligado |
 | `texto <dado> x= y= altura= cor=RRGGBB alinha= fonte= [casas=] [sufixo=] [vazio=]` | Número ou texto; `y` é a linha de base; `vazio` aparece quando não há valor (ex.: sem limite) |
 | `barra <dado> img=<png cheio> de= ate= sentido=direita/esquerda/cima/baixo` | Revela a imagem conforme o valor |

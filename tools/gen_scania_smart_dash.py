@@ -388,7 +388,7 @@ texto velocidade x=716 y=233 altura=92 cor=FFFFFF alinha=centro
 tela 1
 imagem indicador_1.png
 imagem estrada.png
-# imagem logo.png        (coloque o seu logo aqui, se quiser)
+# imagem logo.png cx=716 cy=300 altura=104 largura=190   (seu logo, no lugar do emblema)
 luz faixa_esq      on=faixa_esq_aviso.png off=faixa_esq.png
 luz faixa_dir      on=faixa_dir_aviso.png off=faixa_dir.png
 luz ponto_cego_esq on=ponto_cego_esq.png
