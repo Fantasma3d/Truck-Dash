@@ -95,6 +95,12 @@
 - Perspectiva: estrada, linhas, brilho do ponto cego e fundo agora partem do mesmo ponto de fuga (720, 300).
 - Marchas: os arquivos `gearbox_layout_*.sii` do perfil mostram os nomes de cada câmbio. Pelo número de marchas que o jogo informa (ex.: 14 à frente e 2 à ré = Scania 12+2) o app escreve C1, C2, 1L, 1H... RL, RH.
 
+### 17. Ponto cego calculado pelo próprio plugin
+- Sem canal no SDK, a saída foi usar a memória compartilhada `Local\ETS2LATraffic` que o plugin do ETS2LA (MIT) publica: 40 veículos com posição, tamanho, velocidade e até 3 carretas (174 bytes cada).
+- Com `truck.world.placement` (posição + rumo) cada veículo é levado para o referencial do caminhão: frente = (-sen a, -cos a), direita = (cos a, -sen a).
+- Zona: 1,8 a 6 m para o lado e da cabine até 20 m para trás. O sentido do outro veículo vem do quanto ele andou desde a leitura anterior, sem depender da convenção do quaternion; quem vem na contramão é ignorado.
+- Filtro de tempo: acende após 0,35 s na zona e apaga 0,6 s depois de sair.
+
 ## Próximos passos
 - [ ] Testar no tablet real e medir o FPS
 - [ ] Integrar com o **button box** (Arduino Nano)
@@ -103,4 +109,5 @@
 - [x] Arte do Scania Smart Dash a partir das fotos (5 telas)
 - [ ] Sensor de colisão e avisos de avaria no painel
 - [x] Confirmar canais de ponto cego/faixa no jogo (não existem no SDK)
+- [x] Ponto cego pelo trânsito do plugin do ETS2LA
 - [ ] Modo noturno

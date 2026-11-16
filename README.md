@@ -55,6 +55,10 @@ A referência completa do formato está em [`docs/painel-png.md`](docs/painel-pn
 | Toque longo (0,7 s) à esquerda | Recarrega o `painel.txt` e os PNGs |
 | Toque longo (0,7 s) à direita | Liga ou desliga a demonstração, que anima o painel sem o jogo |
 
+## Ponto cego
+
+O SDK do jogo não informa o ponto cego. O plugin do TruckDash calcula usando os veículos de trânsito publicados pelo plugin do [ETS2LA](https://ets2la.com) (código aberto, MIT). Com o ETS2LA instalado, as linhas da estrada ficam laranja quando há alguém andando ao lado.
+
 ## Como instalar
 
 Os arquivos prontos ficam na pasta [`releases/`](releases/).

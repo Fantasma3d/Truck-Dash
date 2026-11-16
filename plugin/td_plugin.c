@@ -60,6 +60,16 @@ __declspec(dllimport) unsigned long WINAPI GetModuleFileNameA(void *, char *, un
 __declspec(dllimport) void *WINAPI CreateFileA(const char *, unsigned long, unsigned long, void *, unsigned long, unsigned long, void *);
 __declspec(dllimport) int WINAPI ReadFile(void *, void *, unsigned long, unsigned long *, void *);
 __declspec(dllimport) int WINAPI CloseHandle(void *);
+__declspec(dllimport) void *WINAPI OpenFileMappingA(unsigned long, int, const char *);
+__declspec(dllimport) void *WINAPI MapViewOfFile(void *, unsigned long, unsigned long, unsigned long, size_t);
+/* memoria compartilhada que o plugin do ETS2LA publica com os veiculos do transito */
+static const unsigned char *traffic_map(void) {
+    void *h = OpenFileMappingA(4 /*FILE_MAP_READ*/, 0, "Local\\ETS2LATraffic");
+    if (!h) return 0;
+    const unsigned char *p = (const unsigned char *)MapViewOfFile(h, 4, 0, 0, 6960);
+    if (!p) CloseHandle(h);
+    return p;
+}
 static void *g_module;
 /* le TruckDash.txt na mesma pasta da DLL */
 static int read_cfg(char *buf, int max) {
@@ -98,7 +108,16 @@ int WINAPI DllMain(void *h, unsigned long reason, void *r) { (void)r; if (reason
 #include <errno.h>
 #include <sys/select.h>
 #include <netinet/tcp.h>
+#include <sys/mman.h>
 typedef int SOCKET;
+/* teste no Linux: o arquivo /tmp/ETS2LATraffic faz o papel da memoria do ETS2LA */
+static const unsigned char *traffic_map(void) {
+    int fd = open("/tmp/ETS2LATraffic", O_RDONLY);
+    if (fd < 0) return 0;
+    void *p = mmap(0, 6960, PROT_READ, MAP_SHARED, fd, 0);
+    close(fd);
+    return p == MAP_FAILED ? 0 : (const unsigned char *)p;
+}
 static int would_block(void) { return errno == EAGAIN || errno == EWOULDBLOCK || errno == EINPROGRESS; }
 #define INVALID_SOCKET (-1)
 #define EXPORT __attribute__((visibility("default")))
@@ -356,6 +375,87 @@ static void SCSAPIFUNC cb_flag(const scs_string_t n, const scs_u32_t i, const sc
     if (v && v->v.value_bool) g_pkt.flags |= bit; else g_pkt.flags &= ~bit;
 }
 
+/* ------------------------------------------------------------------ ponto cego
+ * O SDK nao informa o ponto cego. O plugin do ETS2LA (codigo aberto, MIT) publica os 40 veiculos de
+ * transito mais proximos; com a posicao do caminhao (truck.world.placement) calculamos nos mesmos. */
+static double g_tx, g_ty, g_tz;
+static float g_heading;            /* 0..1, 0 = norte (-Z), anti-horario */
+static const unsigned char *g_traffic;
+static uint64_t g_traffic_try, g_bs_t;
+static float g_bs_in[2], g_bs_out[2];
+static int g_bs_state[2], g_bs_logged;
+static float g_prev_x[40], g_prev_z[40]; static int g_prev_id[40];
+
+static void SCSAPIFUNC cb_placement(const scs_string_t n, const scs_u32_t i, const scs_value_t *const v, const scs_context_t c) {
+    (void)n; (void)i; (void)c;
+    if (!v || v->type != SCS_VALUE_TYPE_dplacement) return;
+    const double *pos = (const double *)v->v._raw;
+    const float *rot = (const float *)(v->v._raw + 24);
+    g_tx = pos[0]; g_ty = pos[1]; g_tz = pos[2]; g_heading = rot[0];
+}
+
+static float fsin(float x) {          /* sem libm */
+    const float PI = 3.14159265f;
+    while (x > PI) x -= 2 * PI;
+    while (x < -PI) x += 2 * PI;
+    float x2 = x * x;
+    return x * (1 - x2 / 6 * (1 - x2 / 20 * (1 - x2 / 42 * (1 - x2 / 72 * (1 - x2 / 110)))));
+}
+static float fcos(float x) { return fsin(x + 1.57079633f); }
+static float rdf(const unsigned char *p) { float f; unsigned char *q = (unsigned char *)&f; q[0] = p[0]; q[1] = p[1]; q[2] = p[2]; q[3] = p[3]; return f; }
+static int rds(const unsigned char *p) { return (int)(int16_t)(p[0] | (p[1] << 8)); }
+
+static void blind_spot(uint64_t t) {
+    if (!g_traffic) {
+        if (t - g_traffic_try < 5000) return;
+        g_traffic_try = t;
+        g_traffic = traffic_map();
+        if (!g_traffic) { if (!g_bs_logged) { logmsg("TruckDash: transito do ETS2LA nao encontrado - ponto cego desligado"); g_bs_logged = 1; } return; }
+        logmsg("TruckDash: transito do ETS2LA encontrado - ponto cego ligado");
+        for (int i = 0; i < 40; i++) g_prev_id[i] = -1;
+    }
+    float dt = g_bs_t ? (float)(t - g_bs_t) * 0.001f : 0;
+    g_bs_t = t;
+    float a = g_heading * 6.2831853f;
+    float fx = -fsin(a), fz = -fcos(a), rx = fcos(a), rz = -fsin(a);   /* frente e direita do caminhao */
+    int hit[2] = { 0, 0 };
+    float spd = g_pkt.speed < 0 ? -g_pkt.speed : g_pkt.speed;
+    if (spd > 2.5f && !(g_pkt.flags & TDF_PAUSED)) {
+        for (int i = 0; i < 40; i++) {
+            const unsigned char *e = g_traffic + i * 174;
+            float len = rdf(e + 36), vx0 = rdf(e), vz0 = rdf(e + 8);
+            int id = rds(e + 50), moving_same = 0;
+            if (len <= 0.5f || len > 40) { g_prev_id[i] = -1; continue; }    /* entrada vazia */
+            /* sentido pelo deslocamento desde a ultima leitura (nao depende da convencao do quaternion) */
+            if (g_prev_id[i] == id && dt > 0) {
+                float mx = (vx0 - g_prev_x[i]) / dt, mz = (vz0 - g_prev_z[i]) / dt;
+                float along = mx * fx + mz * fz;
+                moving_same = along > 2.0f;                                    /* anda para a mesma frente que o caminhao */
+            }
+            g_prev_id[i] = id; g_prev_x[i] = vx0; g_prev_z[i] = vz0;
+            if (!moving_same) continue;
+            int nb = 1 + rds(e + 48); if (nb > 4) nb = 4;
+            for (int b = 0; b < nb; b++) {                                   /* veiculo + carretas */
+                const unsigned char *o = b == 0 ? e : e + 54 + (b - 1) * 40;
+                float dx = (float)(rdf(o) - g_tx), dy = (float)(rdf(o + 4) - g_ty), dz = (float)(rdf(o + 8) - g_tz);
+                float bl = rdf(o + 36) * 0.5f;
+                if (dy > 4 || dy < -4) continue;                               /* viaduto */
+                float lon = dx * fx + dz * fz, lat = dx * rx + dz * rz;
+                float alat = lat < 0 ? -lat : lat;
+                if (alat < 1.8f || alat > 6.0f) continue;                      /* faixa ao lado */
+                if (lon + bl < -20.0f || lon - bl > 2.0f) continue;            /* da cabine ate o fim da carreta */
+                hit[lat > 0] = 1;
+            }
+        }
+    }
+    for (int s2 = 0; s2 < 2; s2++) {                                         /* filtro: evita piscar com quem vem na contramao */
+        if (hit[s2]) { g_bs_in[s2] += dt; g_bs_out[s2] = 0; } else { g_bs_out[s2] += dt; g_bs_in[s2] = 0; }
+        if (g_bs_in[s2] > 0.35f) g_bs_state[s2] = 1;
+        if (g_bs_out[s2] > 0.6f) g_bs_state[s2] = 0;
+    }
+    g_pkt.flags = (g_pkt.flags & ~(TDF_BLIND_L | TDF_BLIND_R)) | (g_bs_state[0] ? TDF_BLIND_L : 0) | (g_bs_state[1] ? TDF_BLIND_R : 0);
+}
+
 static scs_telemetry_register_for_channel_t g_reg;
 static void reg_f(const char *name, float *dst)      { g_reg(name, SCS_U32_NIL, SCS_VALUE_TYPE_float, SCS_TELEMETRY_CHANNEL_FLAG_none, cb_float, dst); }
 static void reg_s(const char *name, int32_t *dst)    { g_reg(name, SCS_U32_NIL, SCS_VALUE_TYPE_s32, SCS_TELEMETRY_CHANNEL_FLAG_none, cb_s32, dst); }
@@ -438,6 +538,7 @@ static void SCSAPIFUNC on_event(const scs_event_t ev, const void *const info, co
         if (t - g_last_bcast_refresh > 10000) { refresh_bcast(); load_fixed(); g_last_bcast_refresh = t; }
         if (t - g_last_send >= 40) {       /* ~25 pacotes/s */
             g_last_send = t;
+            blind_spot(t);
             net_send(t);
             tcp_send(t);
         }
@@ -534,6 +635,7 @@ EXPORT scs_result_t SCSAPIFUNC scs_telemetry_init(const scs_u32_t version, const
     reg_b("truck.differential_lock", TDF_DIFF_LOCK);
     reg_b("truck.lift_axle", TDF_LIFT_AXLE);
     reg_b("truck.trailer.lift_axle", TDF_TRAILER_LIFT);
+    g_reg("truck.world.placement", SCS_U32_NIL, SCS_VALUE_TYPE_dplacement, SCS_TELEMETRY_CHANNEL_FLAG_none, cb_placement, 0);
 
     net_open();
     logmsg("TruckDash: plugin iniciado - enviando telemetria para o tablet (UDP 45455)");

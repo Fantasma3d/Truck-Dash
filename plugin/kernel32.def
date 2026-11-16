@@ -5,3 +5,5 @@ GetModuleFileNameA
 CreateFileA
 ReadFile
 CloseHandle
+OpenFileMappingA
+MapViewOfFile
