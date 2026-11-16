@@ -59,9 +59,28 @@
 - Um fundo escuro semitransparente não é um fundo opaco: precisa considerar o alfa da cor.
 - O script de build montou o APK com a biblioteca antiga depois de uma falha de compilação. Agora ele apaga a biblioteca antes de compilar.
 
+## 16/11/2026 — um painel só, feito de PNGs
+
+### 10. Menos é mais
+- Os painéis do próprio jogo não ficaram bons no tablet: eram muitos, pesados e cada um com um defeito.
+- **Decisão:** um painel só, o **Scania Smart Dash**, bem feito. Saíram o interpretador da SCS, os 40 pacotes e os 10 temas.
+
+### 11. Painel como "skin": arte separada do código
+- Fundo em PNG e cada luz com um PNG aceso e um apagado. Trocar a arte não exige recompilar.
+- **Truque de desempenho:** o que não muda (fundo + luzes apagadas) vira uma imagem só e é copiado com `memcpy` a cada quadro. Só o que está ligado é desenhado por cima.
+- **Recorte automático:** cada camada pode ser exportada no tamanho inteiro do painel; o app descarta as bordas transparentes e guarda só o pedaço usado.
+- **Barras e arcos sem desenhar nada:** existe uma imagem "cheia" e o app revela só a parte até o valor atual. Para o arco, dois produtos vetoriais dizem se o pixel está dentro do setor, sem calcular ângulo.
+- **Alfa pré-multiplicado:** multiplicar a cor pelo alfa uma vez, ao carregar, deixa a mistura por pixel mais barata e sem bordas escuras ao redimensionar.
+
+### 12. Decodificar PNG na mão
+- Um PNG é uma sequência de blocos: `IHDR` (tamanho e tipo), `PLTE`, `IDAT` (dados comprimidos com zlib) e `IEND`.
+- Depois de descomprimir, cada linha tem um byte de filtro (nenhum, esquerda, cima, média, Paeth) que precisa ser desfeito.
+- O Android já traz a `libz.so`; bastou declarar `uncompress` e ligar contra ela.
+
 ## Próximos passos
 - [ ] Testar no tablet real e medir o FPS
 - [ ] Integrar com o **button box** (Arduino Nano)
 - [x] Painéis originais do jogo
-- [ ] Ajustar os painéis antigos que ainda têm sobreposições (MAN eTGX, Actros 2014)
+- [x] Motor de painel por camadas PNG
+- [ ] Arte do Scania Smart Dash a partir das fotos
 - [ ] Modo noturno

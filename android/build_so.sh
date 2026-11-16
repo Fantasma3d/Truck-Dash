@@ -4,7 +4,7 @@ set -e
 cd "$(dirname "$0")"
 OUT=../out/android
 mkdir -p $OUT
-SRC="main_android.c app.c net.c panel.c render.c scsdash.c aeabi.c"
+SRC="main_android.c app.c net.c panel.c render.c skin.c aeabi.c"
 for ABI in armeabi-v7a x86; do
   case $ABI in
     armeabi-v7a) T="--target=armv7a-linux-androideabi16 -march=armv7-a -mfloat-abi=softfp -mfpu=vfpv3-d16 -mthumb" ;;
@@ -23,21 +23,22 @@ for ABI in armeabi-v7a x86; do
   llvm-nm -u --format=just-symbols $OBJS 2>/dev/null | grep -v -e ':$' -e '^$' | sort -u > $B/u_all.txt
   llvm-nm --defined-only --format=just-symbols $OBJS 2>/dev/null | grep -v -e ':$' -e '^$' | sort -u > $B/defined.txt
   comm -23 $B/u_all.txt $B/defined.txt > $B/undef.txt
-  : > $B/stubs/c.c; : > $B/stubs/android.c; : > $B/stubs/log.c
+  : > $B/stubs/c.c; : > $B/stubs/android.c; : > $B/stubs/log.c; : > $B/stubs/z.c
   for s in $(cat $B/undef.txt); do
     case $s in
       __aeabi_*|_GLOBAL_OFFSET_TABLE_) ;;   # aeabi.c / linker
       ANativeWindow_*|AInputQueue_*|ALooper_*|AInputEvent_*|AMotionEvent_*|AKeyEvent_*|ANativeActivity_*) echo "void $s(void){}" >> $B/stubs/android.c ;;
+      uncompress) echo "void $s(void){}" >> $B/stubs/z.c ;;
       __android_log_*) echo "void $s(void){}" >> $B/stubs/log.c ;;
       *) echo "void $s(void){}" >> $B/stubs/c.c ;;
     esac
   done
-  for l in c android log; do
+  for l in c android log z; do
     clang $T -w -fno-builtin -shared -nostdlib -fuse-ld=lld -Wl,-soname,lib$l.so -o $B/stubs/lib$l.so $B/stubs/$l.c
   done
   clang $T -shared -nostdlib -fuse-ld=lld -Wl,-soname,libmain.so -Wl,--hash-style=sysv \
     -Wl,-z,noexecstack -Wl,-z,max-page-size=4096 -Wl,--no-rosegment -Wl,-z,norelro -Wl,--no-undefined -Wl,--gc-sections \
-    -o $B/libmain.so $OBJS -L$B/stubs -landroid -llog -lc
+    -o $B/libmain.so $OBJS -L$B/stubs -landroid -llog -lz -lc
   llvm-strip --strip-unneeded $B/libmain.so
   echo "== $ABI: $(stat -c %s $B/libmain.so) bytes; libc: $(tr '\n' ' ' < $B/undef.txt | head -c 600)"
 done

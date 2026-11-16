@@ -2,9 +2,11 @@
 
 **Painel de instrumentos do Euro Truck Simulator 2 e do American Truck Simulator num tablet ou celular Android, inclusive aparelhos antigos.**
 
-O TD lê a telemetria do jogo e mostra, num Android ao lado do volante, o painel do caminhão que você está dirigindo. O app escolhe o painel sozinho pela marca do caminhão.
+O TD lê a telemetria do jogo e mostra, num Android ao lado do volante, um painel **Scania Smart Dash** montado com imagens PNG que você mesmo pode trocar.
 
-![Prévia de 4 dos 10 painéis](docs/previa-paineis.png)
+![Painel de exemplo no modo demonstração](docs/exemplo-painel.png)
+
+*A arte acima é só um exemplo provisório gerado por `tools/gen_exemplo.py`.*
 
 ## Ampla compatibilidade
 
@@ -23,44 +25,31 @@ A ideia do TD é aproveitar o aparelho que está parado na gaveta. Por isso ele 
 | **Unidades** | Automáticas: km/h, km, litros e bar no ETS2; mph, milhas, galões e psi no ATS |
 | **Instalação** | Sem licença, sem conta, sem Google Play e sem programa servidor no PC. Só a DLL no jogo e o APK no tablet |
 
-## Painéis originais do jogo (novo)
+## Painel por camadas PNG
 
-O TD consegue mostrar **o mesmo painel digital que aparece dentro da cabine no jogo**: Volvo FH 2021 e 2024, Scania S/R 2016, Scania 2025, Scania S 2024e, DAF 2021 e XD, DAF XF, MAN TGX 2020, Iveco S-Way, Renault T, Mercedes Actros e outros, cerca de 30 modelos. Cada um tem as várias telas que o caminhão real oferece.
+O painel é uma pasta (`TruckDash/scania-smart-dash/` no tablet) com imagens e um arquivo de texto:
 
-Para isso existe um **interpretador do formato de painéis da SCS**, os arquivos `ui/dashboard/*.sii`:
-- mesmo layout, cores e fontes SDF do jogo;
-- barras, ponteiros e ícones ligados aos IDs oficiais (velocidade 1020, rpm 1700, piloto automático 1240...);
-- escolha automática do painel pelo modelo do caminhão.
+- `fundo.png`: o painel inteiro apagado;
+- para cada luz ou botão, **um PNG aceso e um PNG apagado**;
+- `painel.txt`: liga cada PNG a um dado do jogo e posiciona números, barras, arcos e ponteiros.
 
-O conversor `tools/tdpack.py` transforma os arquivos extraídos do **seu** jogo em pacotes `.tdp`, que vão para `TruckDash/paineis/` no tablet. **Os pacotes contêm arte da SCS e são só para uso pessoal; por isso não estão neste repositório.**
+```
+fundo fundo.png
+luz seta_esq  on=seta_esq_on.png  off=seta_esq_off.png
+arco rpm img=rpm_cheio.png cx=250 cy=250 de=0 ang_de=-135 ate=2500 ang_ate=135
+barra combustivel img=combustivel_cheio.png de=0 ate=100 sentido=direita
+ponteiro velocidade img=ponteiro.png cx=1030 cy=250 de=0 ang_de=-135 ate=120 ang_ate=135
+texto velocidade x=640 y=250 altura=130 cor=FFFFFF alinha=centro fonte=negrito
+```
+
+**Por que é leve:** o fundo e todas as luzes apagadas são fundidos numa imagem só, já na resolução da tela, e copiados a cada quadro. Por cima entra apenas o que está ligado. As camadas podem ser exportadas no tamanho do painel inteiro: o app corta as bordas transparentes sozinho, então não é preciso informar posições.
+
+A referência completa do formato está em [`docs/painel-png.md`](docs/painel-png.md).
 
 | Toque | O que faz |
 |---|---|
-| Toque curto (painel original) | Passa para a próxima tela do painel |
-| Toque longo (0,7 s) | Alterna entre o painel original e os painéis do TruckDash |
-| Toque curto (painéis do TruckDash) | Troca o tema (Automático → Scania → Volvo → ...) |
-
-## Painéis do TruckDash
-
-Se não houver painel original para o caminhão, por exemplo em mods ou nos americanos, entram os 10 painéis próprios do TD, escolhidos automaticamente pela marca do caminhão. Também dá para fixar um tocando na tela.
-
-- Scania S/R (nova geração) e Scania R/Streamline
-- Volvo FH
-- Mercedes-Benz Actros
-- MAN TGX
-- DAF XF
-- Renault Trucks T
-- Iveco S-Way
-- Americanos clássicos (Kenworth, Peterbilt, Mack, Western Star)
-- Genérico, para as demais marcas e mods
-
-**O que aparece no painel:**
-- velocímetro e conta-giros, com faixa econômica e faixa vermelha no limite do motor
-- marcha, piloto automático e placa de limite de velocidade
-- combustível com autonomia, AdBlue e pressão do ar
-- temperatura da água e do óleo, pressão do óleo e bateria
-- hodômetro, GPS (distância, tempo e destino) e relógio do jogo
-- luzes do painel: setas, faróis, lanternas, giroflex, diferencial, eixo levantado, retarder com o nível, freio motor, freio de estacionamento e alertas
+| Toque curto | Recarrega o `painel.txt` e os PNGs (para ver uma alteração na hora) |
+| Toque longo (0,7 s) | Liga ou desliga a demonstração, que anima o painel sem o jogo |
 
 ## Como instalar
 
@@ -68,7 +57,8 @@ Os arquivos prontos ficam na pasta [`releases/`](releases/).
 
 1. **PC:** baixe `releases/TruckDash.dll` e os arquivos da pasta [`pc/`](pc/) para uma mesma pasta, e rode `Instalar-plugin.bat`. Ele acha o jogo na Steam e copia o plugin. Se preferir, copie a DLL você mesmo para `...\bin\win_x64\plugins\`.
 2. **Tablet:** ative "Fontes desconhecidas" e instale `releases/TruckDash.apk`. Se der erro ao analisar o pacote, use `TruckDash-sem-icone.apk`.
-3. **Abra o jogo** com o app aberto no tablet.
+3. **Painel:** copie a pasta do painel para `/sdcard/TruckDash/scania-smart-dash/` no tablet. Para gerar o exemplo: `python3 tools/gen_exemplo.py pasta`.
+4. **Abra o jogo** com o app aberto no tablet.
 
 **Pelo cabo USB:**
 1. Ative a "Depuração USB" no tablet.
@@ -88,13 +78,13 @@ ETS2/ATS ──SDK de telemetria──> TruckDash.dll ──UDP (Wi‑Fi) ou TCP
 - **Plugin (`plugin/`):** DLL em C puro, sem dependências. Registra os canais do SDK da SCS e envia um pacote binário de cerca de 400 bytes 25 vezes por segundo.
   - Pelo **Wi‑Fi**, manda por broadcast para a rede local (porta 45455) e direto para os tablets que se anunciaram (porta 45454).
   - Pelo **cabo**, usa TCP em `127.0.0.1:45456`, que o `adb forward` leva até o tablet.
-- **Protocolo (`common/td_proto.h`):** uma estrutura fixa com velocidade, rpm, marcha, fluidos, luzes e a marca e o modelo do caminhão. É pela marca que o app troca de painel.
+- **Protocolo (`common/td_proto.h`):** uma estrutura fixa com velocidade, rpm, marcha, fluidos, luzes e a marca e o modelo do caminhão. 
 - **App (`android/`):** `NativeActivity` em C, sem nenhuma linha de Java. Tem um renderizador por software com suavização de bordas e fontes pré-renderizadas. A rede roda em threads separadas.
 - **Build (`tools/`, `build_all.sh`):** o APK é montado **sem Android SDK nem NDK**, só com:
   - `clang` e `lld`, compilando contra bibliotecas "falsas" só para resolver os símbolos;
   - um gerador próprio do `AndroidManifest.xml` binário e do `resources.arsc`;
   - assinatura v1 (SHA1), que o Android 4 aceita.
-- **Painéis originais (`android/scsdash.c`, `tools/tdpack.py`, `tools/tdpreview.py`):** o conversor lê as definições do painel (`.sii`), as texturas (`.dds`) e as fontes SDF do jogo e gera um pacote compacto. O app interpreta esse pacote com o mesmo algoritmo de layout da prévia em Python. O fundo fica em cache; a cada quadro só os elementos que mudam são redesenhados.
+- **Painel (`android/skin.c`):** decodificador de PNG próprio (usa só a zlib do sistema), redimensionamento único para a resolução da tela e desenho por camadas: luzes, barras e arcos revelados por recorte, ponteiros girados e números.
 - **Testes (`test/`):** um "jogo falso", que carrega o plugin e simula a telemetria, e um "tablet falso", que roda o app no Linux e salva os quadros como imagem.
 
 ## Compilar
@@ -110,4 +100,4 @@ Num Linux com `clang`, `lld`, `python3` + Pillow e um JDK (para o `jarsigner`):
 Este repositório também acompanha o que aprendi nos meus projetos. O diário do TD está em [`docs/aprendizado.md`](docs/aprendizado.md).
 
 ---
-Projeto pessoal, sem fins comerciais. Euro Truck Simulator 2 e American Truck Simulator são marcas da SCS Software. As marcas de caminhões citadas pertencem aos seus donos e servem apenas para identificar o estilo de cada painel.
+Projeto pessoal, sem fins comerciais. Euro Truck Simulator 2 e American Truck Simulator são marcas da SCS Software. Scania e Smart Dash são marcas da Scania; este projeto não tem ligação com a fabricante.

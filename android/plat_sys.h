@@ -42,6 +42,7 @@ struct ifconf { int ifc_len; char *ifc_buf; };
 #define SIOCGIFCONF 0x8912
 int open(const char *, int, ...);
 ssize_t read(int, void *, size_t);
+long lseek(int, long, int);
 ssize_t write(int, const void *, size_t);
 int usleep(unsigned long);
 int clock_gettime(int, struct timespec *);
