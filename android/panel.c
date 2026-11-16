@@ -33,7 +33,7 @@ void panel_draw_waiting(surf_t *s, dash_t *d) {
     r_text(s, F_SANS, X(500), Y(430), L(16), d->usb ? "USB (adb): PC conectado pelo cabo" : "USB (adb): aguardando - rode o TruckDash-USB.bat no PC",
            d->usb ? HEX(0x30d158) : HEX(0x6b7480), AL_CENTER);
     r_text(s, F_SANS, X(500), Y(490), L(16), d->status, HEX(0xffc240), AL_CENTER);
-    r_text(s, F_SANS, X(500), Y(530), L(16), "Toque: recarrega os PNGs do painel   |   Toque longo: demonstracao sem o jogo",
+    r_text(s, F_SANS, X(500), Y(530), L(16), "Toque longo a esquerda: recarrega os PNGs   |   Toque longo a direita: demonstracao sem o jogo",
            HEX(0x6b7480), AL_CENTER);
 }
 
@@ -73,4 +73,18 @@ void panel_update(dash_t *d, float dt) {
     d->n_air = approach(d->n_air, on ? (ats ? p->air_pressure : p->air_pressure * 0.0689476f) : 0, 4, dt);
     d->n_water = approach(d->n_water, on ? p->water_temp : 0, 3, dt);
     d->n_oil = approach(d->n_oil, on ? p->oil_temp : 0, 3, dt);
+
+    /* viagem (hodometro parcial) e consumo em litros por hora, calculados no tablet */
+    if (d->connected && p->odometer > 0) {
+        if (d->trip_odo0 <= 0) { d->trip_odo0 = p->odometer; d->trip_t0 = p->game_time; d->last_fuel = p->fuel; }
+        d->trip_km = p->odometer - d->trip_odo0;
+        d->trip_min = (float)(p->game_time - (uint32_t)d->trip_t0);
+        if (!(p->flags & TDF_PAUSED) && dt > 0) {
+            float used = d->last_fuel - p->fuel, lh = 0;
+            if (used >= 0 && used < 1) lh = used / dt * 3600.0f;   /* abastecer nao conta */
+            if (!(p->flags & TDF_ENGINE)) lh = 0;
+            d->fuel_lh = approach(d->fuel_lh, lh, 0.4f, dt);
+        }
+        d->last_fuel = p->fuel;
+    }
 }

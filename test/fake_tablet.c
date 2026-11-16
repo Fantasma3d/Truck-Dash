@@ -16,8 +16,8 @@ int main(int argc, char **argv) {
     app_init("/tmp", argc > 2 ? argv[2] : "/tmp");
     for (int i = 0; i < secs * 30; i++) {
         app_frame(&fb);
-        if (i == 5 && getenv("TD_DEMO")) app_tap(1);   /* modo demonstracao */
-        if (i == 120) app_tap(0);                      /* recarrega os PNGs */
+        if (i == 5 && getenv("TD_DEMO")) app_tap(1, 0.9f);   /* modo demonstracao */
+        if (getenv("TD_CAROUSEL") && i % 60 == 30) app_tap(0, 0.9f);   /* proxima tela */
         if (i % 60 == 59) { char fn[64]; snprintf(fn, sizeof fn, "/tmp/tab_%02d.ppm", n++); save_ppm(fn, &fb); }
         usleep(33333);
     }

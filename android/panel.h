@@ -12,6 +12,8 @@ typedef struct {
     float dt;
     /* valores suavizados (ponteiros, barras e numeros nao "pulam") */
     float n_speed, n_rpm, n_fuel, n_adblue, n_air, n_water, n_oil;
+    float trip_km, trip_min, fuel_lh;   /* viagem desde que o app abriu; consumo instantaneo */
+    float trip_odo0, last_fuel; double trip_t0;
     char server[32];   /* IP do PC */
     char local_ip[48]; /* IP do tablet */
     int usb;

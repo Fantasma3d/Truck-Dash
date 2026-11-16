@@ -64,6 +64,8 @@ int32_t AInputQueue_preDispatchEvent(AInputQueue *, AInputEvent *);
 void AInputQueue_finishEvent(AInputQueue *, AInputEvent *, int);
 int32_t AInputEvent_getType(const AInputEvent *);
 int32_t AMotionEvent_getAction(const AInputEvent *);
+float AMotionEvent_getX(const AInputEvent *, size_t);
+int32_t ANativeWindow_getWidth(ANativeWindow *);
 int32_t AKeyEvent_getKeyCode(const AInputEvent *);
 void ANativeActivity_setWindowFlags(ANativeActivity *, uint32_t, uint32_t);
 int __android_log_print(int, const char *, const char *, ...);
@@ -95,9 +97,13 @@ static void process_input(void) {
         int handled = 0;
         if (AInputEvent_getType(ev) == AINPUT_EVENT_TYPE_MOTION) {
             static double down_t;
+            static float down_x;
             int act = AMotionEvent_getAction(ev) & 0xff;
-            if (act == 0 /* DOWN */) down_t = now_s();
-            else if (act == 1 /* UP */) app_tap(now_s() - down_t > 0.7);
+            if (act == 0 /* DOWN */) {
+                int w = g_window ? ANativeWindow_getWidth(g_window) : 0;
+                down_t = now_s();
+                down_x = w > 0 ? AMotionEvent_getX(ev, 0) / (float)w : 0.5f;
+            } else if (act == 1 /* UP */) app_tap(now_s() - down_t > 0.7, down_x);
             handled = 1;
         }
         /* teclas (ex.: voltar) ficam com o sistema */

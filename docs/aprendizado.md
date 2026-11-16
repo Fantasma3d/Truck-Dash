@@ -77,10 +77,16 @@
 - Depois de descomprimir, cada linha tem um byte de filtro (nenhum, esquerda, cima, média, Paeth) que precisa ser desfeito.
 - O Android já traz a `libz.so`; bastou declarar `uncompress` e ligar contra ela.
 
+### 13. Carrossel de telas
+- O painel do jogo tem várias vistas (principal, viagem, combustível, temperatura, só velocidade). Virou a linha `tela` no `painel.txt`: cada item ganha uma máscara de bits com as telas onde aparece.
+- O toque guarda a posição X do dedo (`AMotionEvent_getX`): metade direita avança, esquerda volta. A tela escolhida fica salva para a próxima vez.
+- Dados que o jogo não manda (viagem, consumo em l/h) são calculados no tablet a partir do hodômetro e da queda do tanque, com média móvel para não "pular".
+
 ## Próximos passos
 - [ ] Testar no tablet real e medir o FPS
 - [ ] Integrar com o **button box** (Arduino Nano)
 - [x] Painéis originais do jogo
 - [x] Motor de painel por camadas PNG
-- [ ] Arte do Scania Smart Dash a partir das fotos
+- [x] Arte do Scania Smart Dash a partir das fotos (5 telas)
+- [ ] Sensor de colisão e avisos de avaria no painel
 - [ ] Modo noturno

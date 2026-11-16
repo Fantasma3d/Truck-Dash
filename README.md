@@ -4,9 +4,9 @@
 
 O TD lê a telemetria do jogo e mostra, num Android ao lado do volante, um painel **Scania Smart Dash** montado com imagens PNG que você mesmo pode trocar.
 
-![Painel de exemplo no modo demonstração](docs/exemplo-painel.png)
+![As 5 telas do painel no modo demonstração](docs/telas-smart-dash.png)
 
-*A arte acima é só um exemplo provisório gerado por `tools/gen_exemplo.py`.*
+*Arte desenhada do zero por `tools/gen_scania_smart_dash.py`, seguindo a disposição do painel digital da Scania. Não inclui o logotipo da marca.*
 
 ## Ampla compatibilidade
 
@@ -46,10 +46,14 @@ texto velocidade x=640 y=250 altura=130 cor=FFFFFF alinha=centro fonte=negrito
 
 A referência completa do formato está em [`docs/painel-png.md`](docs/painel-png.md).
 
+**Telas em carrossel:** a linha `tela 1 2 3` faz os itens seguintes aparecerem só nessas telas; `tela todas` volta para todas. O painel vem com 5 telas: principal, viagem, combustível, temperatura e só velocidade.
+
 | Toque | O que faz |
 |---|---|
-| Toque curto | Recarrega o `painel.txt` e os PNGs (para ver uma alteração na hora) |
-| Toque longo (0,7 s) | Liga ou desliga a demonstração, que anima o painel sem o jogo |
+| Toque curto na metade direita | Próxima tela |
+| Toque curto na metade esquerda | Tela anterior |
+| Toque longo (0,7 s) à esquerda | Recarrega o `painel.txt` e os PNGs |
+| Toque longo (0,7 s) à direita | Liga ou desliga a demonstração, que anima o painel sem o jogo |
 
 ## Como instalar
 
@@ -57,7 +61,7 @@ Os arquivos prontos ficam na pasta [`releases/`](releases/).
 
 1. **PC:** baixe `releases/TruckDash.dll` e os arquivos da pasta [`pc/`](pc/) para uma mesma pasta, e rode `Instalar-plugin.bat`. Ele acha o jogo na Steam e copia o plugin. Se preferir, copie a DLL você mesmo para `...\bin\win_x64\plugins\`.
 2. **Tablet:** ative "Fontes desconhecidas" e instale `releases/TruckDash.apk`. Se der erro ao analisar o pacote, use `TruckDash-sem-icone.apk`.
-3. **Painel:** copie a pasta do painel para `/sdcard/TruckDash/scania-smart-dash/` no tablet. Para gerar o exemplo: `python3 tools/gen_exemplo.py pasta`.
+3. **Painel:** copie a pasta do painel para `/sdcard/TruckDash/scania-smart-dash/` no tablet. Para gerar: `python3 tools/gen_scania_smart_dash.py pasta`.
 4. **Abra o jogo** com o app aberto no tablet.
 
 **Pelo cabo USB:**

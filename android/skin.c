@@ -15,19 +15,22 @@ int uncompress(unsigned char *dst, unsigned long *dlen, const unsigned char *src
 typedef struct { int w, h, ox, oy, fw, fh; uint32_t *px; } img_t;   /* original aparado; fw/fh = tamanho do arquivo */
 typedef struct { int x, y, w, h; uint32_t *px; } spr_t;             /* ja na escala da tela */
 
-enum { K_LUZ = 1, K_TEXTO, K_PONTEIRO, K_BARRA, K_ARCO };
+enum { K_LUZ = 1, K_TEXTO, K_PONTEIRO, K_BARRA, K_ARCO, K_IMG };
+#define MAX_TELAS 16
 enum { DIR_R = 0, DIR_L, DIR_U, DIR_D };
 
 /* dados numericos / de texto */
 enum { D_NONE = 0, D_VEL, D_RPM, D_COMB, D_ARLA, D_AR, D_AGUA, D_OLEO, D_POLEO, D_BAT, D_CRUZ, D_LIM, D_ACEL, D_FREIO,
-       D_EMBR, D_AUTON, D_ODO, D_CONS, D_RET, D_LITROS, D_NAV_KM, D_MARCHA, D_HORA, D_NAV_TEMPO, D_CAMINHAO, D_DESTINO, D_CARGA };
+       D_EMBR, D_AUTON, D_ODO, D_CONS, D_RET, D_LITROS, D_NAV_KM, D_MARCHA, D_HORA, D_NAV_TEMPO, D_CAMINHAO, D_DESTINO, D_CARGA,
+       D_VIAGEM_KM, D_VIAGEM_TEMPO, D_VIAGEM_VEL, D_CONS_HORA, D_ARLA_L, D_DESGASTE };
 static const struct { const char *n; int id; } DATA[] = {
     { "velocidade", D_VEL }, { "rpm", D_RPM }, { "combustivel", D_COMB }, { "arla", D_ARLA }, { "ar", D_AR },
     { "agua", D_AGUA }, { "oleo", D_OLEO }, { "pressao_oleo", D_POLEO }, { "bateria", D_BAT }, { "cruzeiro", D_CRUZ },
     { "limite", D_LIM }, { "acelerador", D_ACEL }, { "freio", D_FREIO }, { "embreagem", D_EMBR }, { "autonomia", D_AUTON },
     { "hodometro", D_ODO }, { "consumo", D_CONS }, { "retarder", D_RET }, { "litros", D_LITROS }, { "nav_km", D_NAV_KM },
     { "marcha", D_MARCHA }, { "hora", D_HORA }, { "nav_tempo", D_NAV_TEMPO }, { "caminhao", D_CAMINHAO },
-    { "destino", D_DESTINO }, { "carga", D_CARGA }, { 0, 0 } };
+    { "destino", D_DESTINO }, { "carga", D_CARGA }, { "viagem_km", D_VIAGEM_KM }, { "viagem_tempo", D_VIAGEM_TEMPO },
+    { "viagem_vel", D_VIAGEM_VEL }, { "consumo_hora", D_CONS_HORA }, { "arla_litros", D_ARLA_L }, { "desgaste", D_DESGASTE }, { 0, 0 } };
 
 /* luzes */
 enum { L_NONE = 0, L_SEMPRE, L_CRUZ, L_RET, L_LIM, L_AUX, L_TETO, L_FLAG = 100 };
@@ -40,20 +43,21 @@ static const struct { const char *n; int id; uint32_t flag; } LUZ[] = {
     { "motor", L_FLAG, TDF_ENGINE }, { "aviso_combustivel", L_FLAG, TDF_FUEL_WARN }, { "aviso_arla", L_FLAG, TDF_ADBLUE_WARN },
     { "aviso_ar", L_FLAG, TDF_AIR_WARN }, { "emergencia_ar", L_FLAG, TDF_AIR_EMERG }, { "aviso_oleo", L_FLAG, TDF_OIL_WARN },
     { "aviso_agua", L_FLAG, TDF_WATER_WARN }, { "aviso_bateria", L_FLAG, TDF_BATT_WARN }, { "carga", L_FLAG, TDF_ON_JOB },
+    { "carreta", L_FLAG, TDF_CARGO_LOADED }, { "pausado", L_FLAG, TDF_PAUSED },
     { "sempre", L_SEMPRE, 0 }, { "ignicao", L_SEMPRE, 0 }, { "cruzeiro", L_CRUZ, 0 }, { "retarder", L_RET, 0 },
     { "limite", L_LIM, 0 }, { "farol_aux", L_AUX, 0 }, { "farol_teto", L_TETO, 0 }, { 0, 0, 0 } };
 
 typedef struct {
     int kind, data, invert, line;
-    uint32_t flag;
+    uint32_t flag, telas;   /* telas: bit 0 = tela 1 ... */
     img_t on, off;
-    spr_t s_on;
+    spr_t s_on, s_off;
     float x, y, cx, cy, pvx, pvy;
     int has_pivot;
     float v0, v1, a0, a1;
     int dir;
     float size; uint32_t color; int align, font, dec;
-    char suffix[16];
+    char suffix[16], empty[16];
 } item_t;
 
 struct skin {
@@ -62,7 +66,9 @@ struct skin {
     item_t *it; int n, cap;
     char err[160]; int nerr;
     char dir[256];
-    surf_t cache;
+    surf_t base, cache;     /* base = fundo na escala da tela; cache = base + estaticos da tela atual */
+    int cache_page, ntelas;
+    uint32_t cur_mask;      /* telas das proximas linhas */
     float s, ox, oy;
 };
 
@@ -393,6 +399,26 @@ static item_t *add_item(skin_t *k) {
 static void parse_line(skin_t *k, int line, char **tok, int n) {
     const char *ty = tok[0], *v;
     if (!strcmp(ty, "tamanho") && n >= 3) { k->W = (int)num(tok[1]); k->H = (int)num(tok[2]); return; }
+    if (!strcmp(ty, "tela")) {
+        uint32_t m = 0;
+        for (int i = 1; i < n; i++) {
+            if (!strcmp(tok[i], "todas")) { m = 0xffffffffu; continue; }
+            int t = (int)num(tok[i]);
+            if (t < 1 || t > MAX_TELAS) { fail(k, line, "tela invalida:", tok[i]); continue; }
+            m |= 1u << (t - 1);
+            if (t > k->ntelas) k->ntelas = t;
+        }
+        k->cur_mask = m ? m : 0xffffffffu;
+        return;
+    }
+    if (!strcmp(ty, "imagem") && n >= 2) {
+        item_t *it = add_item(k);
+        if (!it) return;
+        it->kind = K_IMG; it->line = line; it->telas = k->cur_mask;
+        it->x = kvf(tok + 2, n - 2, "x", 0); it->y = kvf(tok + 2, n - 2, "y", 0);
+        img_load(k, line, tok[1], &it->on, 1);
+        return;
+    }
     if (!strcmp(ty, "fundo") && n >= 2) {
         if (img_load(k, line, tok[1], &k->bg, 0) && !k->W) { k->W = k->bg.w; k->H = k->bg.h; }
         return;
@@ -406,7 +432,7 @@ static void parse_line(skin_t *k, int line, char **tok, int n) {
     if (!data) { fail(k, line, "dado desconhecido:", tok[1]); return; }
     item_t *it = add_item(k);
     if (!it) return;
-    it->kind = kind; it->data = data; it->flag = flag; it->line = line;
+    it->kind = kind; it->data = data; it->flag = flag; it->line = line; it->telas = k->cur_mask;
     tok += 2; n -= 2;
     it->x = kvf(tok, n, "x", 0); it->y = kvf(tok, n, "y", 0);
     it->cx = kvf(tok, n, "cx", 0); it->cy = kvf(tok, n, "cy", 0);
@@ -421,6 +447,7 @@ static void parse_line(skin_t *k, int line, char **tok, int n) {
         if (v && !strcmp(v, "normal")) it->font = F_SANS;
         it->dec = (int)kvf(tok, n, "casas", 0);
         if ((v = kv(tok, n, "sufixo"))) snprintf(it->suffix, sizeof it->suffix, "%s", v);
+        if ((v = kv(tok, n, "vazio"))) snprintf(it->empty, sizeof it->empty, "%s", v);
         return;
     }
     const char *on = kv(tok, n, kind == K_LUZ ? "on" : "img");
@@ -441,6 +468,7 @@ skin_t *skin_load(const char *dir) {
     long len;
     if (!k) return 0;
     snprintf(k->dir, sizeof k->dir, "%s", dir);
+    k->cur_mask = 0xffffffffu;
     snprintf(path, sizeof path, "%s/painel.txt", dir);
     char *txt = (char *)read_file(path, &len);
     if (!txt) { k->nerr = 1; snprintf(k->err, sizeof k->err, "nao achei %s", path); return k; }
@@ -469,13 +497,15 @@ skin_t *skin_load(const char *dir) {
         p = next;
     }
     free(txt);
+    if (k->ntelas < 1) k->ntelas = 1;
     if (!k->W || !k->H) { if (!k->nerr++) snprintf(k->err, sizeof k->err, "painel.txt: faltou a linha 'fundo arquivo.png'"); }
     return k;
 }
 
 static void free_scaled(skin_t *k) {
     free(k->cache.px); k->cache.px = 0; k->cache.w = k->cache.h = 0;
-    for (int i = 0; i < k->n; i++) { free(k->it[i].s_on.px); k->it[i].s_on.px = 0; }
+    free(k->base.px); k->base.px = 0; k->base.w = k->base.h = 0;
+    for (int i = 0; i < k->n; i++) { free(k->it[i].s_on.px); k->it[i].s_on.px = 0; free(k->it[i].s_off.px); k->it[i].s_off.px = 0; }
 }
 
 void skin_free(skin_t *k) {
@@ -487,31 +517,45 @@ void skin_free(skin_t *k) {
 
 int skin_ok(const skin_t *k) { return k && k->W > 0 && k->H > 0; }
 int skin_items(const skin_t *k) { return k ? k->n : 0; }
+int skin_pages(const skin_t *k) { return k ? k->ntelas : 1; }
 const char *skin_error(const skin_t *k) { return k ? k->err : "sem memoria"; }
 
-/* monta tudo na resolucao da tela: fundo + luzes apagadas viram uma imagem so */
+/* escala tudo uma vez para a resolucao da tela */
 static void prepare(skin_t *k, int w, int h) {
     free_scaled(k);
+    k->base.px = (uint32_t *)malloc((size_t)w * h * 4);
     k->cache.px = (uint32_t *)malloc((size_t)w * h * 4);
-    if (!k->cache.px) return;
-    k->cache.w = w; k->cache.h = h; k->cache.stride = w;
+    if (!k->base.px || !k->cache.px) { free_scaled(k); return; }
+    k->base.w = k->cache.w = w; k->base.h = k->cache.h = h; k->base.stride = k->cache.stride = w;
+    k->cache_page = -1;
     float s = (float)w / k->W;
     if ((float)h / k->H < s) s = (float)h / k->H;
     k->s = s; k->ox = ifloor((w - k->W * s) * 0.5f); k->oy = ifloor((h - k->H * s) * 0.5f);
-    r_clear(&k->cache, RGB(0, 0, 0));
+    r_clear(&k->base, RGB(0, 0, 0));
     spr_t t;
     make_sprite(&k->bg, 0, 0, s, k->ox, k->oy, w, h, &t);
-    blit(&k->cache, &t, 0, 0, w, h); free(t.px);
+    blit(&k->base, &t, 0, 0, w, h); free(t.px);
     for (int i = 0; i < k->n; i++) {
         item_t *it = &k->it[i];
         if (it->kind == K_TEXTO) continue;
-        if (it->kind == K_LUZ && it->off.px) {
-            make_sprite(&it->off, it->x, it->y, s, k->ox, k->oy, w, h, &t);
-            blit(&k->cache, &t, 0, 0, w, h); free(t.px);
-        }
         if (it->kind == K_PONTEIRO) make_sprite(&it->on, 0, 0, s, 0, 0, 1 << 20, 1 << 20, &it->s_on);   /* so reduz; a posicao vem do pivo */
         else make_sprite(&it->on, it->x, it->y, s, k->ox, k->oy, w, h, &it->s_on);
+        if (it->kind == K_LUZ && it->off.px) make_sprite(&it->off, it->x, it->y, s, k->ox, k->oy, w, h, &it->s_off);
     }
+}
+
+/* tela atual: base + imagens fixas + luzes apagadas. Feito so quando a tela muda. */
+static void build_page(skin_t *k, int page) {
+    int w = k->cache.w, h = k->cache.h;
+    uint32_t bit = 1u << page;
+    memcpy(k->cache.px, k->base.px, (size_t)w * h * 4);
+    for (int i = 0; i < k->n; i++) {
+        item_t *it = &k->it[i];
+        if (!(it->telas & bit)) continue;
+        if (it->kind == K_IMG) blit(&k->cache, &it->s_on, 0, 0, w, h);
+        else if (it->kind == K_LUZ) blit(&k->cache, &it->s_off, 0, 0, w, h);
+    }
+    k->cache_page = page;
 }
 
 /* ------------------------------------------------------------------ valores */
@@ -546,6 +590,19 @@ static float value(const dash_t *d, int id, int *smooth) {
     case D_NAV_KM: return p->nav_distance * 0.001f * kd;
     case D_CARGA: return p->cargo_mass * 0.001f;
     case D_MARCHA: return (float)(p->displayed_gear ? p->displayed_gear : p->gear);
+    case D_VIAGEM_KM: return d->trip_km * kd;
+    case D_VIAGEM_TEMPO: return d->trip_min;
+    case D_VIAGEM_VEL: return d->trip_min > 1 ? d->trip_km * kd / (d->trip_min / 60.0f) : 0;
+    case D_CONS_HORA: return d->fuel_lh;
+    case D_ARLA_L: return p->adblue;
+    case D_DESGASTE: {
+        float w = p->wear_engine;
+        if (p->wear_transmission > w) w = p->wear_transmission;
+        if (p->wear_cabin > w) w = p->wear_cabin;
+        if (p->wear_chassis > w) w = p->wear_chassis;
+        if (p->wear_wheels > w) w = p->wear_wheels;
+        return w * 100.0f;
+    }
     }
     return 0;
 }
@@ -577,6 +634,7 @@ static int text_of(const dash_t *d, const item_t *it, char *b, int n) {
     }
     case D_HORA: snprintf(b, n, "%02d:%02d", (int)((p->game_time / 60) % 24), (int)(p->game_time % 60)); break;
     case D_NAV_TEMPO: { int m = (int)(p->nav_time / 60.0f); snprintf(b, n, "%d:%02d", m / 60, m % 60); break; }
+    case D_VIAGEM_TEMPO: { int m = (int)d->trip_min; snprintf(b, n, "%02d:%02d", m / 60, m % 60); break; }
     case D_CAMINHAO: snprintf(b, n, "%s %s", p->brand, p->truck_name); break;
     case D_DESTINO: snprintf(b, n, "%s", p->dest_city); break;
     case D_CRUZ: if (p->cruise <= 0.1f) return 0; goto number;
@@ -591,20 +649,26 @@ static int text_of(const dash_t *d, const item_t *it, char *b, int n) {
     return 1;
 }
 
-void skin_draw(surf_t *fb, skin_t *k, const dash_t *d) {
+void skin_draw(surf_t *fb, skin_t *k, const dash_t *d, int page) {
     if (!skin_ok(k)) return;
     if (k->cache.w != fb->w || k->cache.h != fb->h) prepare(k, fb->w, fb->h);
     if (!k->cache.px) return;
+    if (page < 0 || page >= k->ntelas) page = 0;
+    if (page != k->cache_page) build_page(k, page);
+    uint32_t bit = 1u << page;
     r_blit(fb, &k->cache);
     int on = (d->p.flags & TDF_ELECTRIC) != 0;
     float s = k->s;
     for (int i = 0; i < k->n; i++) {
         const item_t *it = &k->it[i];
+        if (!(it->telas & bit) || it->kind == K_IMG) continue;
         if (it->kind == K_LUZ) { if (light_on(d, it)) blit(fb, &it->s_on, 0, 0, fb->w, fb->h); continue; }
         if (it->kind == K_TEXTO) {
             char b[96];
-            if (on && text_of(d, it, b, sizeof b))
-                r_text(fb, it->font, k->ox + it->x * s, k->oy + it->y * s, it->size * s, b, it->color, it->align);
+            const char *str = b;
+            if (!on) continue;
+            if (!text_of(d, it, b, sizeof b)) { if (!it->empty[0]) continue; str = it->empty; }
+            r_text(fb, it->font, k->ox + it->x * s, k->oy + it->y * s, it->size * s, str, it->color, it->align);
             continue;
         }
         int sm;
