@@ -25,7 +25,7 @@ GREEN = (0, 178, 159)         # cores do painel do jogo
 BLUE = (73, 136, 243)
 AMBER = (241, 194, 27)
 RED = (235, 10, 55)
-BLIND = (40, 95, 200)
+ORANGE = (255, 135, 20)    # ponto cego
 FONT_DIR = "/usr/share/fonts/opentype/inter/"
 
 _fc = {}
@@ -287,18 +287,26 @@ def make_estrada(k, suf):
     line(d, [((ll[1][0] + lr[1][0]) / 2, ll[1][1]), ((ll[0][0] + lr[0][0]) / 2, ll[0][1])], (40, 44, 54, 255), 2)
     save(im, "estrada%s.png" % suf)
     for side, (a, b) in (("esq", ll), ("dir", lr)):
-        for st, col in (("", LANE), ("_aviso", AMBER)):
-            im, d = layer()
-            d.polygon(Q([(a[0] - 5 * k, a[1]), (a[0] + 5 * k, a[1]), (b[0] + 2 * k, b[1]), (b[0] - 2 * k, b[1])]), fill=col + (255,))
-            if st: im = Image.alpha_composite(im.filter(ImageFilter.GaussianBlur(6 * SS)), im)
-            save(im, "faixa_%s%s%s.png" % (side, st, suf))
-        im, d = layer(); sg = -1 if side == "esq" else 1          # ponto cego: brilho azul por fora da faixa
-        for i in range(18):
-            t0, t1 = i / 18, (i + 1) / 18
-            o0, o1 = 10 + 90 * t0, 10 + 90 * t1
-            d.polygon(Q([(a[0] + sg * o0 * k, a[1]), (a[0] + sg * o1 * k, a[1]), (b[0] + sg * o1 * k * 0.45, b[1]), (b[0] + sg * o0 * k * 0.45, b[1])]),
-                      fill=BLIND + (int(200 * (1 - t0) ** 1.4),))
-        save(im.filter(ImageFilter.GaussianBlur(3 * SS)), "ponto_cego_%s%s.png" % (side, suf))
+        sg = -1 if side == "esq" else 1
+        poly = [(a[0] - 5 * k, a[1]), (a[0] + 5 * k, a[1]), (b[0] + 2 * k, b[1]), (b[0] - 2 * k, b[1])]
+        im, d = layer(); d.polygon(Q(poly), fill=LANE + (255,)); save(im, "faixa_%s%s.png" % (side, suf))
+        # saida de faixa: a propria linha em amarelo, com brilho
+        im, d = layer(); d.polygon(Q(poly), fill=AMBER + (255,))
+        save(Image.alpha_composite(im.filter(ImageFilter.GaussianBlur(5 * SS)), im), "faixa_%s_aviso%s.png" % (side, suf))
+        # ponto cego: a linha em laranja + brilho saindo dela para fora, colado na linha
+        im, d = layer()
+        ea, eb = (a[0] + sg * 5 * k, a[1]), (b[0] + sg * 2 * k, b[1])      # borda externa da linha
+        for i in range(16):
+            t0, t1 = i / 16, (i + 1) / 16
+            wa, wb = 70 * k, 26 * k                                         # largura do brilho (perto / longe)
+            d.polygon(Q([(ea[0] + sg * wa * t0, ea[1]), (ea[0] + sg * wa * t1, ea[1]),
+                         (eb[0] + sg * wb * t1, eb[1]), (eb[0] + sg * wb * t0, eb[1])]),
+                      fill=ORANGE + (int(170 * (1 - t0) ** 1.6),))
+        im = im.filter(ImageFilter.GaussianBlur(2 * SS))
+        line_im, ld = layer(); ld.polygon(Q(poly), fill=ORANGE + (255,))
+        im = Image.alpha_composite(im, line_im.filter(ImageFilter.GaussianBlur(4 * SS)))
+        im = Image.alpha_composite(im, line_im)
+        save(im, "ponto_cego_%s%s.png" % (side, suf))
 
 def make_limite(cx, cy, r, suf):
     im, d = layer()
@@ -388,7 +396,7 @@ texto velocidade x=716 y=233 altura=92 cor=FFFFFF alinha=centro
 tela 1
 imagem indicador_1.png
 imagem estrada.png
-# imagem logo.png cx=716 cy=300 altura=104 largura=190   (seu logo, no lugar do emblema)
+# imagem logo.png        (coloque o seu logo aqui, se quiser)
 luz faixa_esq      on=faixa_esq_aviso.png off=faixa_esq.png
 luz faixa_dir      on=faixa_dir_aviso.png off=faixa_dir.png
 luz ponto_cego_esq on=ponto_cego_esq.png
