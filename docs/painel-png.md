@@ -24,9 +24,9 @@ Linhas que começam com `#` são comentários. Os itens são desenhados na ordem
 Ângulos em graus: 0 aponta para cima e cresce no sentido horário.
 
 ## Dados
-**Luzes:** `seta_esq seta_dir alerta lanterna farol_baixo farol_alto farol_aux farol_teto giroflex freio_mao freio_motor retarder cruzeiro diferencial eixo eixo_carreta luz_freio re limpador motor limite carga carreta pausado aviso_combustivel aviso_arla aviso_ar emergencia_ar aviso_oleo aviso_agua aviso_bateria sempre`
+**Luzes:** `seta_esq seta_dir alerta lanterna farol_baixo farol_alto farol_aux farol_teto giroflex freio_mao freio_motor retarder cruzeiro diferencial eixo eixo_carreta luz_freio re limpador motor limite carga carreta pausado ponto_cego_esq ponto_cego_dir faixa_esq faixa_dir aviso_combustivel aviso_arla aviso_ar emergencia_ar aviso_oleo aviso_agua aviso_bateria sempre`
 
-**Valores:** `velocidade rpm combustivel arla ar agua oleo pressao_oleo bateria cruzeiro limite acelerador freio embreagem autonomia hodometro consumo retarder litros nav_km carga viagem_km viagem_vel consumo_hora arla_litros desgaste`
+**Valores:** `velocidade rpm combustivel arla ar agua oleo pressao_oleo bateria cruzeiro limite acelerador freio embreagem autonomia hodometro consumo retarder litros nav_km carga viagem_km viagem_vel consumo_hora consumo_inst arla_litros desgaste`
 
 **Só texto:** `marcha hora nav_tempo viagem_tempo caminhao destino`
 

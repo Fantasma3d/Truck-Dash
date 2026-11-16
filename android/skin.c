@@ -22,7 +22,7 @@ enum { DIR_R = 0, DIR_L, DIR_U, DIR_D };
 /* dados numericos / de texto */
 enum { D_NONE = 0, D_VEL, D_RPM, D_COMB, D_ARLA, D_AR, D_AGUA, D_OLEO, D_POLEO, D_BAT, D_CRUZ, D_LIM, D_ACEL, D_FREIO,
        D_EMBR, D_AUTON, D_ODO, D_CONS, D_RET, D_LITROS, D_NAV_KM, D_MARCHA, D_HORA, D_NAV_TEMPO, D_CAMINHAO, D_DESTINO, D_CARGA,
-       D_VIAGEM_KM, D_VIAGEM_TEMPO, D_VIAGEM_VEL, D_CONS_HORA, D_ARLA_L, D_DESGASTE };
+       D_VIAGEM_KM, D_VIAGEM_TEMPO, D_VIAGEM_VEL, D_CONS_HORA, D_ARLA_L, D_DESGASTE, D_CONS_INST };
 static const struct { const char *n; int id; } DATA[] = {
     { "velocidade", D_VEL }, { "rpm", D_RPM }, { "combustivel", D_COMB }, { "arla", D_ARLA }, { "ar", D_AR },
     { "agua", D_AGUA }, { "oleo", D_OLEO }, { "pressao_oleo", D_POLEO }, { "bateria", D_BAT }, { "cruzeiro", D_CRUZ },
@@ -30,7 +30,7 @@ static const struct { const char *n; int id; } DATA[] = {
     { "hodometro", D_ODO }, { "consumo", D_CONS }, { "retarder", D_RET }, { "litros", D_LITROS }, { "nav_km", D_NAV_KM },
     { "marcha", D_MARCHA }, { "hora", D_HORA }, { "nav_tempo", D_NAV_TEMPO }, { "caminhao", D_CAMINHAO },
     { "destino", D_DESTINO }, { "carga", D_CARGA }, { "viagem_km", D_VIAGEM_KM }, { "viagem_tempo", D_VIAGEM_TEMPO },
-    { "viagem_vel", D_VIAGEM_VEL }, { "consumo_hora", D_CONS_HORA }, { "arla_litros", D_ARLA_L }, { "desgaste", D_DESGASTE }, { 0, 0 } };
+    { "viagem_vel", D_VIAGEM_VEL }, { "consumo_hora", D_CONS_HORA }, { "arla_litros", D_ARLA_L }, { "desgaste", D_DESGASTE }, { "consumo_inst", D_CONS_INST }, { 0, 0 } };
 
 /* luzes */
 enum { L_NONE = 0, L_SEMPRE, L_CRUZ, L_RET, L_LIM, L_AUX, L_TETO, L_FLAG = 100 };
@@ -44,6 +44,8 @@ static const struct { const char *n; int id; uint32_t flag; } LUZ[] = {
     { "aviso_ar", L_FLAG, TDF_AIR_WARN }, { "emergencia_ar", L_FLAG, TDF_AIR_EMERG }, { "aviso_oleo", L_FLAG, TDF_OIL_WARN },
     { "aviso_agua", L_FLAG, TDF_WATER_WARN }, { "aviso_bateria", L_FLAG, TDF_BATT_WARN }, { "carga", L_FLAG, TDF_ON_JOB },
     { "carreta", L_FLAG, TDF_CARGO_LOADED }, { "pausado", L_FLAG, TDF_PAUSED },
+    { "ponto_cego_esq", L_FLAG, TDF_BLIND_L }, { "ponto_cego_dir", L_FLAG, TDF_BLIND_R },
+    { "faixa_esq", L_FLAG, TDF_LANE_L }, { "faixa_dir", L_FLAG, TDF_LANE_R },
     { "sempre", L_SEMPRE, 0 }, { "ignicao", L_SEMPRE, 0 }, { "cruzeiro", L_CRUZ, 0 }, { "retarder", L_RET, 0 },
     { "limite", L_LIM, 0 }, { "farol_aux", L_AUX, 0 }, { "farol_teto", L_TETO, 0 }, { 0, 0, 0 } };
 
@@ -594,6 +596,7 @@ static float value(const dash_t *d, int id, int *smooth) {
     case D_VIAGEM_TEMPO: return d->trip_min;
     case D_VIAGEM_VEL: return d->trip_min > 1 ? d->trip_km * kd / (d->trip_min / 60.0f) : 0;
     case D_CONS_HORA: return d->fuel_lh;
+    case D_CONS_INST: { float kmh = r_fabs(p->speed) * 3.6f; float c = kmh > 5 ? d->fuel_lh / kmh * 100.0f : 0; return c > 199 ? 199 : c; }
     case D_ARLA_L: return p->adblue;
     case D_DESGASTE: {
         float w = p->wear_engine;
@@ -633,7 +636,7 @@ static int text_of(const dash_t *d, const item_t *it, char *b, int n) {
         break;
     }
     case D_HORA: snprintf(b, n, "%02d:%02d", (int)((p->game_time / 60) % 24), (int)(p->game_time % 60)); break;
-    case D_NAV_TEMPO: { int m = (int)(p->nav_time / 60.0f); snprintf(b, n, "%d:%02d", m / 60, m % 60); break; }
+    case D_NAV_TEMPO: { int m = (int)(p->nav_time / 60.0f); snprintf(b, n, "%02d:%02d", m / 60, m % 60); break; }
     case D_VIAGEM_TEMPO: { int m = (int)d->trip_min; snprintf(b, n, "%02d:%02d", m / 60, m % 60); break; }
     case D_CAMINHAO: snprintf(b, n, "%s %s", p->brand, p->truck_name); break;
     case D_DESTINO: snprintf(b, n, "%s", p->dest_city); break;

@@ -1,35 +1,35 @@
 #!/usr/bin/env python3
 """Gera o painel "Scania Smart Dash" do TruckDash: PNGs em camadas + painel.txt.
 
-Arte desenhada do zero (formas e icones proprios), seguindo a disposicao do painel
-digital da Scania como aparece no ETS2: escala de velocidade a esquerda, conta-giros a
-direita, informacoes no centro em 5 telas (carrossel) e faixa inferior fixa.
-Nao inclui o logotipo da Scania: para usar um, coloque logo.png na pasta e descomente
-a linha no painel.txt.
+Tamanho 1440 x 540 (8:3), o mesmo do painel do jogo: no tablet sobram faixas pretas em
+cima e embaixo, como na tela do caminhao ("cinema").
+Disposicao tirada das fotos de referencia (pasta "Painel smart dash") e das posicoes do
+painel scania_2025 do jogo. Desenhos proprios; sem o logotipo da Scania (coloque logo.png
+e descomente a linha no painel.txt se quiser).
 
 Uso: python3 tools/gen_scania_smart_dash.py <pasta-de-saida>
-Todas as camadas tem o tamanho do painel (1024 x 600); o app corta as bordas vazias.
 """
-import math, os, sys
+import os, sys
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
-W, H, SS = 1024, 600, 3
+W, H, SS = 1440, 540, 2
 OUT = sys.argv[1] if len(sys.argv) > 1 else "scania-smart-dash"
 os.makedirs(OUT, exist_ok=True)
 
-TEAL = (88, 230, 212)
-TEAL_D = (44, 150, 128)
-GREY = (150, 158, 168)
-WHITE = (236, 240, 244)
-DIM = (58, 64, 74)
-RED = (255, 64, 72)
-GREEN = (61, 220, 106)
-BLUE = (70, 140, 255)
-AMBER = (255, 176, 32)
+TEAL = (64, 224, 208)
+GREY = (150, 156, 166)
+LANE = (150, 156, 168)
+WHITE = (238, 241, 245)
+DIM = (46, 50, 58)            # luz apagada (como nas fotos)
+GREEN = (0, 178, 159)         # cores do painel do jogo
+BLUE = (73, 136, 243)
+AMBER = (241, 194, 27)
+RED = (235, 10, 55)
+BLIND = (40, 95, 200)
 FONT_DIR = "/usr/share/fonts/opentype/inter/"
 
 _fc = {}
-def font(px, w="SemiBold"):
+def font(px, w="Medium"):
     k = (px, w)
     if k not in _fc:
         _fc[k] = ImageFont.truetype(FONT_DIR + "Inter-%s.otf" % w, int(px * SS))
@@ -43,283 +43,287 @@ def save(im, name):
     im.resize((W, H), Image.LANCZOS).save(os.path.join(OUT, name), optimize=True)
     return name
 
-def P(*v):
-    return [x * SS for x in v]
+def P(*v): return [x * SS for x in v]
+def Q(pts): return [(x * SS, y * SS) for x, y in pts]
+def line(d, pts, col, w): d.line(Q(pts), fill=col, width=max(1, int(w * SS)), joint="curve")
+def text(d, x, y, s, px, col, anchor="ls", w="Medium"): d.text((x * SS, y * SS), s, font=font(px, w), fill=col, anchor=anchor)
+def lerp(a, b, t): return a + (b - a) * t
+def stroke(c, w=2.2): return dict(outline=c, width=int(w * SS))
 
-def line(d, pts, col, w):
-    d.line([(x * SS, y * SS) for x, y in pts], fill=col, width=max(1, int(w * SS)), joint="curve")
+# ------------------------------------------------------------------ geometria (fotos -> 1440x540)
+VEL_MAX, RPM_MAX = 120, 2500
+YB, YT = 455, 185                         # posicao do 0 e do maximo nas escalas
+L_TOP, L_BOT = (275, 165), (352, 462)     # linha da velocidade
+R_TOP, R_BOT = (1165, 165), (1088, 462)   # linha do conta-giros
+def lx(y): return lerp(L_BOT[0], L_TOP[0], (L_BOT[1] - y) / (L_BOT[1] - L_TOP[1]))
+def rx(y): return lerp(R_BOT[0], R_TOP[0], (R_BOT[1] - y) / (R_BOT[1] - R_TOP[1]))
+def vy(v): return YB - (YB - YT) * v / VEL_MAX
+def ry(r): return YB - (YB - YT) * r / RPM_MAX
+LL = ((557, 469), (714, 361))             # faixas da estrada (foto sem logo)
+LR = ((987, 469), (827, 361))
 
-def text(d, x, y, s, px, col, anchor="ls", w="SemiBold"):
-    d.text((x * SS, y * SS), s, font=font(px, w), fill=col, anchor=anchor)
-
-# ------------------------------------------------------------------ geometria das escalas
-VEL_MAX, RPM_MAX = 100, 2500
-Y0, Y1 = 515, 92                     # base (0) e topo da escala
-def lx(y): return 352 - (Y0 - y) * (52.0 / (Y0 - Y1))   # linha da velocidade
-def rx(y): return 672 + (Y0 - y) * (52.0 / (Y0 - Y1))   # linha do conta-giros
-def vy(v): return Y0 - (Y0 - Y1) * v / VEL_MAX
-def ry(r): return Y0 - (Y0 - Y1) * r / RPM_MAX
-
-# ------------------------------------------------------------------ icones (desenho proprio)
-def ic_fuel(d, x, y, c, s=1.0):
-    d.rounded_rectangle(P(x - 8 * s, y - 11 * s, x + 3 * s, y + 11 * s), radius=2 * SS, outline=c, width=int(2.2 * SS))
-    d.rectangle(P(x - 6 * s, y - 8 * s, x + 1 * s, y - 2 * s), fill=c)
-    line(d, [(x + 3 * s, y - 4 * s), (x + 8 * s, y - 1 * s), (x + 8 * s, y + 8 * s), (x + 11 * s, y + 8 * s), (x + 11 * s, y - 6 * s)], c, 2 * s)
-
-def ic_avg(d, x, y, c):
-    ic_fuel(d, x, y - 2, c, 0.9)
-    text(d, x + 10, y + 11, "AVG", 9, c, w="Bold")
-
-def ic_pump_lh(d, x, y, c):
-    d.rounded_rectangle(P(x - 9, y - 11, x + 9, y + 11), radius=3 * SS, outline=c, width=int(2 * SS))
-    ic_fuel(d, x, y, c, 0.55)
-
-def ic_clock_note(d, x, y, c):
-    d.rounded_rectangle(P(x - 11, y - 12, x + 11, y + 12), radius=2 * SS, outline=c, width=int(2.2 * SS))
-    for i in range(3):
-        line(d, [(x - 6, y - 6 + i * 5), (x + 6, y - 6 + i * 5)], c, 1.6)
-
-def ic_speed_avg(d, x, y, c):
-    d.arc(P(x - 12, y - 12, x + 12, y + 12), 150, 390, fill=c, width=int(2.2 * SS))
-    line(d, [(x, y), (x + 7, y - 7)], c, 2.2)
-    text(d, x + 9, y + 12, "AVG", 9, c, w="Bold")
-
-def ic_t1(d, x, y, c, px=26):
-    text(d, x, y, "T", px, c, w="Bold")
-    text(d, x + px * 0.58, y + 2, "1", px * 0.55, c, w="Bold")
-
-def ic_adblue(d, x, y, c):
-    text(d, x, y - 2, "Ad", 11, c, w="Bold")
-    text(d, x, y + 9, "Blue", 11, c, w="Bold")
-    d.ellipse(P(x + 15, y - 12, x + 21, y - 5), fill=(80, 170, 255))
-
-def ic_water(d, x, y, c):
-    line(d, [(x, y - 14), (x, y + 4)], c, 2.4)
-    for i in range(3):
-        line(d, [(x, y - 10 + i * 5), (x + 7, y - 10 + i * 5)], c, 1.6)
-    for k in (8, 13):
-        pts = [(x - 12 + i * 3, y + k + (1.6 if i % 2 else -1.6)) for i in range(9)]
-        line(d, pts, c, 1.8)
-
-def ic_oil(d, x, y, c):
-    d.polygon([((x - 14) * SS, (y - 2) * SS), ((x + 6) * SS, (y - 2) * SS), ((x + 14) * SS, (y - 7) * SS),
-               ((x + 6) * SS, (y + 6) * SS), ((x - 14) * SS, (y + 6) * SS)], outline=c, width=int(2 * SS))
-    line(d, [(x - 4, y - 2), (x - 4, y - 7), (x - 10, y - 7)], c, 2)
-    d.ellipse(P(x + 13, y + 3, x + 17, y + 8), fill=c)
-
-def ic_circle_txt(d, x, y, t, c, r=12, px=15):
-    d.ellipse(P(x - r, y - r, x + r, y + r), outline=c, width=int(2.2 * SS))
-    text(d, x, y, t, px, c, anchor="mm", w="Bold")
-
-def ic_trailer(d, x, y, c):
-    d.rounded_rectangle(P(x - 12, y - 10, x + 2, y + 3), radius=2 * SS, outline=c, width=int(2 * SS))
-    line(d, [(x + 2, y - 3), (x + 9, y - 3), (x + 12, y + 3)], c, 2)
-    d.ellipse(P(x - 9, y + 3, x - 3, y + 9), outline=c, width=int(1.6 * SS))
-    d.ellipse(P(x + 5, y + 3, x + 11, y + 9), outline=c, width=int(1.6 * SS))
-    line(d, [(x - 14, y + 13), (x + 14, y + 13)], c, 1.6)
-
-def ic_arrow(d, x, y, c, sgn):
-    pts = [(-16, 0), (0, -13), (0, -6), (14, -6), (14, 6), (0, 6), (0, 13)]
-    d.polygon([((x + px * sgn) * SS, (y + py) * SS) for px, py in pts], fill=c)
-
-def ic_lamp(d, x, y, c, high):
-    d.chord(P(x - 2, y - 11, x + 16, y + 11), 270, 90, outline=c, width=int(2.2 * SS))
+# ------------------------------------------------------------------ icones (desenho proprio, no estilo das fotos)
+def ic_lowbeam(d, x, y, c):
+    d.chord(P(x - 2, y - 11, x + 16, y + 11), 270, 90, **stroke(c))
     line(d, [(x + 3, y - 11), (x + 3, y + 11)], c, 2.2)
     for i in range(4):
-        yy = y - 8 + i * 5.5
-        line(d, [(x - 13, yy + (0 if high else 4)), (x - 3, yy)], c, 2)
+        yy = y - 8 + i * 5.5; line(d, [(x - 13, yy + 4), (x - 3, yy)], c, 2)
 
-def ic_park(d, x, y, c):
-    for sg in (-1, 1):
-        d.arc(P(x - 7 + sg * 7, y - 8, x + 7 + sg * 7, y + 8), 270 if sg > 0 else 90, 90 if sg > 0 else 270, fill=c, width=int(2 * SS))
-        for i in range(3):
-            line(d, [(x + sg * 16, y - 6 + i * 6), (x + sg * 21, y - 7 + i * 6)], c, 1.6)
+def ic_highbeam(d, x, y, c):
+    d.chord(P(x - 2, y - 11, x + 16, y + 11), 270, 90, **stroke(c))
+    line(d, [(x + 3, y - 11), (x + 3, y + 11)], c, 2.2)
+    for i in range(4):
+        yy = y - 8 + i * 5.5; line(d, [(x - 13, yy), (x - 3, yy)], c, 2)
 
-def ic_brake(d, x, y, c, t="P"):
-    d.ellipse(P(x - 10, y - 10, x + 10, y + 10), outline=c, width=int(2.2 * SS))
-    d.arc(P(x - 16, y - 14, x + 16, y + 14), 120, 240, fill=c, width=int(2 * SS))
-    d.arc(P(x - 16, y - 14, x + 16, y + 14), -60, 60, fill=c, width=int(2 * SS))
-    text(d, x, y + 1, t, 13, c, anchor="mm", w="Bold")
+def ic_beacon(d, x, y, c):
+    d.rounded_rectangle(P(x - 7, y - 6, x + 7, y + 8), radius=6 * SS, fill=c)
+    d.rectangle(P(x - 11, y + 8, x + 11, y + 11), fill=c)
+    for a, b in (((x, y - 15), (x, y - 11)), ((x - 12, y - 9), (x - 9, y - 6)), ((x + 12, y - 9), (x + 9, y - 6)),
+                 ((x - 15, y + 1), (x - 11, y + 1)), ((x + 15, y + 1), (x + 11, y + 1))):
+        line(d, [a, b], c, 2)
 
-def ic_cruise(d, x, y, c):
-    d.arc(P(x - 13, y - 13, x + 13, y + 13), 135, 405, fill=c, width=int(2.2 * SS))
-    line(d, [(x, y + 2), (x + 8, y - 8)], c, 2.4)
-    line(d, [(x - 6, y + 13), (x + 6, y + 13)], c, 2)
+def ic_ring(d, x, y, c):
+    d.arc(P(x - 15, y - 13, x + 15, y + 13), 115, 245, fill=c, width=int(2 * SS))
+    d.arc(P(x - 15, y - 13, x + 15, y + 13), -65, 65, fill=c, width=int(2 * SS))
+    d.ellipse(P(x - 10, y - 10, x + 10, y + 10), **stroke(c))
 
-def ic_box(d, x, y, t, c, px=13):
-    d.rounded_rectangle(P(x - 16, y - 11, x + 16, y + 11), radius=4 * SS, outline=c, width=int(2 * SS))
-    text(d, x, y + 1, t, px, c, anchor="mm", w="Bold")
+def ic_brake_warn(d, x, y, c):
+    ic_ring(d, x, y, c); line(d, [(x, y - 6), (x, y + 2)], c, 2.4); d.ellipse(P(x - 1.5, y + 4, x + 1.5, y + 7), fill=c)
+
+def ic_parking(d, x, y, c):
+    ic_ring(d, x, y, c); text(d, x, y + 1, "P", 13, c, "mm", "Bold")
+
+def ic_engine_brake(d, x, y, c):
+    ic_ring(d, x, y, c); line(d, [(x - 6, y), (x + 4, y)], c, 2)
+    d.polygon(Q([(x + 7, y), (x + 2, y - 4), (x + 2, y + 4)]), fill=c)
+
+def ic_retarder(d, x, y, c):
+    ic_ring(d, x, y, c)
+    d.ellipse(P(x - 7, y - 3.5, x, y + 3.5), **stroke(c, 1.8)); d.ellipse(P(x, y - 3.5, x + 7, y + 3.5), **stroke(c, 1.8))
 
 def ic_battery(d, x, y, c):
-    d.rounded_rectangle(P(x - 14, y - 8, x + 14, y + 10), radius=2 * SS, outline=c, width=int(2 * SS))
+    d.rounded_rectangle(P(x - 14, y - 8, x + 14, y + 10), radius=2 * SS, **stroke(c, 2))
     line(d, [(x - 9, y - 8), (x - 9, y - 12)], c, 3); line(d, [(x + 9, y - 8), (x + 9, y - 12)], c, 3)
-    text(d, x - 8, y + 2, "-", 14, c, anchor="mm", w="Bold"); text(d, x + 8, y + 2, "+", 14, c, anchor="mm", w="Bold")
+    line(d, [(x - 11, y + 1), (x - 5, y + 1)], c, 1.8); line(d, [(x + 5, y + 1), (x + 11, y + 1)], c, 1.8)
+    line(d, [(x + 8, y - 2), (x + 8, y + 4)], c, 1.8)
+
+def ic_lift(d, x, y, c, trailer):
+    if trailer: d.rectangle(P(x - 13, y - 11, x + 13, y - 8), fill=c)
+    else: line(d, [(x - 13, y - 9), (x + 13, y - 9)], c, 2)
+    for k in (-6, 6): d.ellipse(P(x + k - 5, y - 4, x + k + 5, y + 6), **stroke(c, 2))
+    line(d, [(x + 6, y + 8), (x + 6, y + 14)], c, 2)
+    d.polygon(Q([(x + 6, y + 6), (x + 3, y + 10), (x + 9, y + 10)]), fill=c)
+
+def ic_arrow(d, x, y, c, sgn):
+    pts = [(-20, 0), (-6, -12), (-6, -5), (8, -5), (8, 5), (-6, 5), (-6, 12)]
+    d.polygon(Q([(x + px * sgn, y + py) for px, py in pts]), fill=c)
+    a, b = sorted((x + 12 * sgn, x + 18 * sgn))
+    d.rectangle(P(a, y - 4, b, y + 4), fill=c)
+
+def ic_cruise(d, x, y, c):
+    d.arc(P(x - 12, y - 10, x + 12, y + 14), 140, 400, fill=c, width=int(2 * SS))
+    line(d, [(x, y + 2), (x - 5, y - 6)], c, 2.2)
+    d.ellipse(P(x - 9, y - 15, x - 5, y - 11), fill=c)
+
+def ic_hpattern(d, x, y, c):
+    for xx in (x - 8, x, x + 8): line(d, [(xx, y - 10), (xx, y + 10)], c, 2.6)
+    line(d, [(x - 8, y), (x + 8, y)], c, 2.6)
+
+def ic_oilcan(d, x, y, c, waves):
+    d.polygon(Q([(x - 14, y - 4), (x + 4, y - 4), (x + 14, y - 9), (x + 6, y + 5), (x - 14, y + 5)]), **stroke(c, 2))
+    line(d, [(x - 5, y - 4), (x - 5, y - 9)], c, 2); line(d, [(x - 10, y - 9), (x, y - 9)], c, 2)
+    d.ellipse(P(x + 13, y - 3, x + 16, y + 2), fill=c)
+    if waves:
+        for k in (10, 14):
+            line(d, [(x - 15 + i * 3, y + k + (1.3 if i % 2 else -1.3)) for i in range(11)], c, 1.6)
+
+def ic_water(d, x, y, c):
+    line(d, [(x, y - 14), (x, y + 4)], c, 2.6)
+    for i in range(3): line(d, [(x, y - 11 + i * 5), (x + 7, y - 11 + i * 5)], c, 1.6)
+    d.ellipse(P(x - 3.5, y + 1, x + 3.5, y + 8), fill=c)
+    for k in (9, 13): line(d, [(x - 14 + i * 3, y + k + (1.3 if i % 2 else -1.3)) for i in range(10)], c, 1.6)
+
+def ic_fuel(d, x, y, c):
+    d.rounded_rectangle(P(x - 9, y - 12, x + 4, y + 12), radius=2 * SS, fill=c)
+    d.rectangle(P(x - 6, y - 9, x + 1, y - 3), fill=(12, 15, 22, 255))
+    line(d, [(x + 4, y - 4), (x + 9, y - 1), (x + 9, y + 8), (x + 12, y + 8), (x + 12, y - 7)], c, 2)
+
+def ic_fuel_out(d, x, y, c):
+    d.rounded_rectangle(P(x - 9, y - 12, x + 4, y + 12), radius=2 * SS, **stroke(c, 2))
+    d.rectangle(P(x - 6, y - 9, x + 1, y - 3), fill=c)
+    line(d, [(x + 4, y - 4), (x + 9, y - 1), (x + 9, y + 8), (x + 12, y + 8), (x + 12, y - 7)], c, 2)
+
+def ic_range(d, x, y, c):
+    d.ellipse(P(x - 22, y - 3, x - 16, y + 3), fill=c)
+    line(d, [(x - 18, y), (x + 4, y)], c, 2.4); d.polygon(Q([(x + 8, y), (x + 1, y - 5), (x + 1, y + 5)]), fill=c)
+    line(d, [(x + 13, y - 12), (x + 13, y + 12)], c, 2.6)
+
+def ic_adblue(d, x, y, c):
+    text(d, x - 10, y - 2, "Ad", 11, c, w="Bold"); text(d, x - 10, y + 9, "Blue", 11, c, w="Bold")
+    d.ellipse(P(x + 5, y - 13, x + 10, y - 6), fill=(80, 170, 255))
+
+def ic_clock_note(d, x, y, c):
+    d.rounded_rectangle(P(x - 11, y - 12, x + 11, y + 12), radius=2 * SS, **stroke(c))
+    for i in range(3): line(d, [(x - 6, y - 6 + i * 5), (x + 6, y - 6 + i * 5)], c, 1.6)
+
+def ic_avg(d, x, y, c, speed=False):
+    if speed:
+        d.arc(P(x - 12, y - 12, x + 12, y + 12), 150, 390, fill=c, width=int(2.2 * SS)); line(d, [(x, y), (x + 7, y - 7)], c, 2.2)
+    else:
+        ic_fuel_out(d, x, y - 2, c)
+    text(d, x + 10, y + 12, "AVG", 9, c, w="Bold")
 
 # ------------------------------------------------------------------ fundo (todas as telas)
 def make_fundo():
-    im = Image.new("RGBA", (W * SS, H * SS), (6, 8, 11, 255))
+    base, bd = layer()
+    bd.rounded_rectangle(P(0, 0, W, H), radius=26 * SS, fill=(9, 11, 16, 255))
     glow, g = layer()
-    for cx, cy, r, col in ((60, 600, 330, (30, 60, 120, 150)), (964, 600, 330, (30, 60, 120, 150)), (512, 640, 300, (25, 45, 90, 110))):
+    for cx, cy, r, col in ((110, 600, 420, (28, 52, 105, 190)), (1330, 600, 420, (28, 52, 105, 190)), (720, 620, 380, (22, 38, 80, 120))):
         g.ellipse(P(cx - r, cy - r, cx + r, cy + r), fill=col)
-    im = Image.alpha_composite(im, glow.filter(ImageFilter.GaussianBlur(90 * SS)))
+    glow = glow.filter(ImageFilter.GaussianBlur(110 * SS))
+    tun, td = layer()   # centro mais escuro entre as escalas
+    td.polygon(Q([(L_TOP[0] + 10, 60), (R_TOP[0] - 10, 60), (R_BOT[0] - 40, 520), (L_BOT[0] + 40, 520)]), fill=(0, 0, 0, 120))
+    tun = tun.filter(ImageFilter.GaussianBlur(25 * SS))
+    im = Image.alpha_composite(Image.alpha_composite(base, glow), tun)
+    im.putalpha(base.split()[3])
     d = ImageDraw.Draw(im)
-    # paineis laterais levemente mais claros
-    side, sd = layer()
-    sd.polygon([(0, 70 * SS), (lx(92) * SS - 40 * SS, 70 * SS), (lx(515) * SS - 30 * SS, 600 * SS), (0, 600 * SS)], fill=(20, 32, 56, 70))
-    sd.polygon([(W * SS, 70 * SS), (rx(92) * SS + 40 * SS, 70 * SS), (rx(515) * SS + 30 * SS, 600 * SS), (W * SS, 600 * SS)], fill=(20, 32, 56, 70))
-    im = Image.alpha_composite(im, side.filter(ImageFilter.GaussianBlur(6 * SS)))
-    d = ImageDraw.Draw(im)
-    # linhas de perspectiva bem fracas
-    for x in (-400, -150, 120, 330, 694, 904, 1174, 1424):
-        line(d, [(512, 300), (x, 600)], (26, 34, 48, 255), 1)
-    # faixa inferior
-    line(d, [(20, 548), (1004, 548)], (34, 42, 58, 255), 1)
-    # linha do indicador de tela (o pedaco verde e de cada tela)
-    line(d, [(402, 18), (622, 18)], (52, 60, 70, 255), 2)
-    # combustivel: trilho
-    for x0, x1 in ((70, 112), (116, 158), (162, 204)):
-        line(d, [(x0, 582), (x1, 582)], GREY + (255,), 2)
-    text(d, 218, 584, "→|", 20, WHITE)
-    ic_fuel(d, 44, 574, WHITE)
-    # faixa central: icone de pista
-    for i in range(5):
-        yy = 552 + i * 9; half = 14 + i * 3
-        line(d, [(512 - half, yy), (512 + half, yy)], (150, 158, 170, 255), 3)
-    line(d, [(489, 552), (478, 594)], (150, 158, 170, 255), 3); line(d, [(535, 552), (546, 594)], (150, 158, 170, 255), 3)
-    text(d, 586, 74, "km/h", 14, WHITE)
-    ic_water(d, 634, 574, WHITE)
-    ic_t1(d, 750, 586, WHITE, 24)
-    ic_adblue(d, 882, 580, WHITE)
-    for x0, x1 in ((912, 950), (954, 1000)):
-        line(d, [(x0, 582), (x1, 582)], GREY + (255,), 2)
+    for x in (-500, -120, 300, 560, 880, 1140, 1560, 1940):
+        line(d, [(720, 300), (x, 540)], (30, 40, 58, 255), 1)
+    line(d, [(480, 30), (960, 30)], (44, 50, 60, 255), 3)
+    # faixa de baixo
+    ic_fuel(d, 65, 520, WHITE)
+    ic_range(d, 292, 520, WHITE)
+    text(d, 1102, 533, "T1", 26, WHITE)
+    ic_adblue(d, 1319, 520, WHITE)
+    # topo
+    ic_cruise(d, 430, 180, WHITE)
+    text(d, 845, 184, "km/h", 15, GREY)
+    ic_hpattern(d, 929, 182, GREY)
+    # lateral esquerda: pressao do oleo, temperatura do oleo, agua
+    for y, fn in ((302, lambda d, x, y, c: ic_oilcan(d, x, y, c, True)), (347, lambda d, x, y, c: ic_oilcan(d, x, y, c, False)), (389, ic_water)):
+        fn(d, 72, y - 4, WHITE)
+        line(d, [(108, y + 3), (270, y + 3)], (36, 42, 52, 255), 5)
+    # lateral direita: consumo
+    ic_fuel_out(d, 1199, 322, WHITE)
+    line(d, [(1184, 342), (1385, 342)], (36, 42, 52, 255), 5)
     return save(im, "fundo.png")
 
-# ------------------------------------------------------------------ escalas (telas 1 a 4)
 def make_escalas():
     im, d = layer()
-    # velocidade
-    line(d, [(lx(Y1 - 8), Y1 - 8), (lx(Y0), Y0)], GREY + (255,), 2)
-    for v in range(0, VEL_MAX + 1, 5):
-        y = vy(v); ln = 12 if v % 20 == 0 else (8 if v % 10 == 0 else 5)
-        if v <= 30 or v % 10 == 0:
-            line(d, [(lx(y), y), (lx(y) + ln, y)], GREY + (255,), 2)
-        if v % 20 == 0 and v <= 80:
-            text(d, lx(y) + 18, y + 9, str(v), 24, WHITE)
-    text(d, lx(Y0) - 12, Y0 + 30, "km/h", 14, GREY)
-    line(d, [(lx(Y0) - 8, Y0), (lx(Y0) + 26, Y0)], TEAL + (255,), 4)
-    # conta-giros
-    line(d, [(rx(Y1 - 8), Y1 - 8), (rx(Y0), Y0)], GREY + (255,), 2)
+    line(d, [L_TOP, L_BOT], GREY + (255,), 2)
+    line(d, [R_BOT, (rx(ry(2250)), ry(2250))], GREY + (255,), 2)
+    line(d, [(rx(ry(2250)), ry(2250)), R_TOP], RED + (255,), 3)
+    for v in range(0, VEL_MAX + 1, 10):
+        y = vy(v); line(d, [(lx(y) + 4, y), (lx(y) + (11 if v % 20 == 0 else 7), y)], (90, 98, 110, 255), 1.5)
+        if v % 20 == 0: text(d, lx(y) + 42, y + 8, str(v), 21, WHITE, "ms", "Regular")
     for r in range(0, RPM_MAX + 1, 250):
-        y = ry(r); ln = 12 if r % 500 == 0 else 6
-        if r <= 750 or r % 500 == 0:
-            line(d, [(rx(y) - ln, y), (rx(y), y)], GREY + (255,), 2)
-        if r % 500 == 0 and r <= 2000:
-            text(d, rx(y) - 18, y + 9, str(r // 100), 24, WHITE, anchor="rs")
-    line(d, [(rx(ry(2250)), ry(2250)), (rx(Y1 - 8), Y1 - 8)], RED + (255,), 4)
-    text(d, rx(Y0) - 30, Y0 + 30, "rpm x100", 14, GREY)
-    line(d, [(rx(Y0) - 26, Y0), (rx(Y0) + 8, Y0)], TEAL + (255,), 4)
-    # circuitos de ar (esquerda)
-    for i, t in enumerate(("1", "2", "P")):
-        y = 250 + i * 50
-        ic_circle_txt(d, 92, y, t, WHITE, 11, 13)
-        line(d, [(118, y + 4), (190, y + 4)], GREY + (255,), 2)
-        line(d, [(198, y + 4), (242, y + 4)], TEAL_D + (255,), 2)
-    # consumo (direita)
-    ic_avg(d, 800, 248, WHITE)
-    ic_pump_lh(d, 802, 300, WHITE)
-    line(d, [(790, 330), (990, 330)], (110, 118, 128, 255), 2)
+        y = ry(r); line(d, [(rx(y) - 4, y), (rx(y) - (11 if r % 500 == 0 else 7), y)], (90, 98, 110, 255), 1.5)
+        if r % 500 == 0: text(d, rx(y) - 42, y + 8, str(r // 100), 21, WHITE, "ms", "Regular")
     return save(im, "escalas.png")
 
-def make_bars():
-    out = {}
-    im, d = layer(); line(d, [(lx(Y0), Y0), (lx(Y1), Y1)], TEAL + (255,), 5); out["vel"] = save(im, "velocidade_cheio.png")
-    im, d = layer(); line(d, [(rx(Y0), Y0), (rx(ry(2250)), ry(2250))], TEAL + (255,), 5)
-    line(d, [(rx(ry(2250)), ry(2250)), (rx(Y1), Y1)], RED + (255,), 5); out["rpm"] = save(im, "rpm_cheio.png")
+def wedge(fn_x, segs, inward, name):
+    """faixa preenchida por dentro da linha (do 0 ao maximo); o app revela de baixo para cima"""
     im, d = layer()
-    for i in range(3): line(d, [(118, 250 + i * 50 - 3), (242, 250 + i * 50 - 3)], TEAL + (255,), 4)
-    out["ar"] = save(im, "ar_cheio.png")
-    im, d = layer(); line(d, [(790, 330), (990, 330)], TEAL + (255,), 3); out["lh"] = save(im, "consumo_hora_cheio.png")
-    im, d = layer(); line(d, [(70, 575), (204, 575)], TEAL + (255,), 4); out["comb"] = save(im, "combustivel_cheio.png")
-    im, d = layer(); line(d, [(912, 575), (1000, 575)], TEAL + (255,), 4); out["arla"] = save(im, "arla_cheio.png")
-    # barras grandes das telas de combustivel e temperatura
-    CX0, CX1 = 410, 614
-    im, d = layer(); line(d, [(CX0, 280), (CX1, 280)], TEAL + (255,), 5); out["comb_g"] = save(im, "combustivel_grande_cheio.png")
-    im, d = layer(); line(d, [(CX0, 372), (CX1, 372)], TEAL + (255,), 5); out["arla_g"] = save(im, "arla_grande_cheio.png")
-    im, d = layer(); line(d, [(CX0, 268), (CX1, 268)], TEAL + (255,), 5); out["agua_g"] = save(im, "agua_cheio.png")
-    im, d = layer(); line(d, [(CX0, 338), (CX1, 338)], TEAL + (255,), 5); out["oleo_g"] = save(im, "oleo_cheio.png")
-    return out
+    steps = 24
+    for i in range(steps):
+        t0, t1 = i / steps, (i + 1) / steps
+        a = int(235 * (1 - t0) ** 1.6)
+        for ys, ye, col in segs:
+            d.polygon(Q([(fn_x(ys) + inward * 24 * t0, ys), (fn_x(ys) + inward * 24 * t1, ys),
+                         (fn_x(ye) + inward * 24 * t1, ye), (fn_x(ye) + inward * 24 * t0, ye)]), fill=col + (a,))
+    return save(im, name)
+
+def make_bars():
+    wedge(lx, [(vy(0), vy(VEL_MAX), TEAL)], +1, "velocidade_cheio.png")
+    wedge(rx, [(ry(0), ry(2250), TEAL), (ry(2250), ry(RPM_MAX), RED)], -1, "rpm_cheio.png")
+    for name, y in (("pressao_oleo_cheio.png", 302), ("oleo_cheio.png", 347), ("agua_cheio.png", 389)):
+        im, d = layer(); line(d, [(108, y + 3), (270, y + 3)], TEAL + (255,), 5); save(im, name)
+    im, d = layer(); line(d, [(1184, 342), (1385, 342)], TEAL + (255,), 5); save(im, "consumo_cheio.png")
+    for name, y in (("combustivel_grande_cheio.png", 330), ("arla_grande_cheio.png", 410),
+                    ("agua_grande_cheio.png", 318), ("oleo_grande_cheio.png", 392)):
+        im, d = layer(); line(d, [(560, y), (880, y)], TEAL + (255,), 6); save(im, name)
 
 def make_indicador(i, n):
     im, d = layer()
-    seg = 220.0 / n
-    line(d, [(402 + seg * i + 4, 18), (402 + seg * (i + 1) - 4, 18)], TEAL_D + (255,), 3)
+    seg = 480.0 / n
+    line(d, [(480 + seg * i + 6, 30), (480 + seg * (i + 1) - 6, 30)], TEAL + (255,), 4)
     return save(im, "indicador_%d.png" % (i + 1))
 
+def title(d, s): text(d, 720, 275, s, 20, WHITE, "ms", "SemiBold")
+
 def make_tela_viagem():
-    im, d = layer()
-    text(d, 512, 196, "Viagem", 20, WHITE, anchor="ms", w="Bold")
-    ic_avg(d, 414, 250, WHITE); ic_clock_note(d, 548, 248, WHITE)
-    ic_speed_avg(d, 414, 312, WHITE); ic_t1(d, 538, 324, WHITE, 26)
+    im, d = layer(); title(d, "Viagem")
+    ic_avg(d, 575, 318, WHITE); ic_clock_note(d, 735, 316, WHITE)
+    ic_avg(d, 575, 388, WHITE, True); text(d, 722, 400, "T1", 24, WHITE)
     return save(im, "tela_viagem.png")
 
 def make_tela_combustivel():
-    im, d = layer()
-    text(d, 512, 196, "Nível de combustível", 20, WHITE, anchor="ms", w="Bold")
-    ic_fuel(d, 420, 250, WHITE)
-    for y in (288, 380):
+    im, d = layer(); title(d, "Nível de combustível")
+    ic_fuel_out(d, 572, 303, WHITE); ic_adblue(d, 572, 382, WHITE)
+    for y in (338, 418):
         for k in range(4):
-            x0 = 410 + k * 51
-            line(d, [(x0 + 2, y), (x0 + 49, y)], GREY + (255,), 2)
-    ic_adblue(d, 412, 348, WHITE)
+            x0 = 560 + k * 80; line(d, [(x0 + 3, y), (x0 + 77, y)], GREY + (255,), 2)
     return save(im, "tela_combustivel.png")
 
 def make_tela_temperatura():
-    im, d = layer()
-    text(d, 512, 196, "Temperatura", 20, WHITE, anchor="ms", w="Bold")
-    ic_water(d, 420, 244, WHITE); ic_oil(d, 422, 318, WHITE)
-    for y in (276, 346):
-        line(d, [(410, y), (580, y)], GREY + (255,), 2)
-        line(d, [(588, y), (614, y)], (190, 196, 204, 255), 2)
-    text(d, 410, 384, "0", 15, WHITE); text(d, 614, 384, "130", 15, WHITE, anchor="rs")
+    im, d = layer(); title(d, "Temperatura")
+    ic_water(d, 572, 298, WHITE); ic_oilcan(d, 574, 372, WHITE, False)
+    for y in (326, 400):
+        line(d, [(560, y), (840, y)], GREY + (255,), 2); line(d, [(848, y), (880, y)], (200, 205, 212, 255), 2)
+    text(d, 560, 436, "0", 15, WHITE); text(d, 880, 436, "130", 15, WHITE, "rs")
     return save(im, "tela_temperatura.png")
 
-def make_estrada(big):
-    im, d = layer()
-    if big:
-        road, rd = layer()
-        rd.polygon([(462 * SS, 300 * SS), (562 * SS, 300 * SS), (700 * SS, 548 * SS), (324 * SS, 548 * SS)], fill=(26, 32, 44, 200))
-        im = Image.alpha_composite(im, road.filter(ImageFilter.GaussianBlur(3 * SS))); d = ImageDraw.Draw(im)
-    a, b = ((484, 300), (390, 548)) if big else ((488, 380), (430, 548))
-    line(d, [a, b], (205, 210, 218, 255), 7 if big else 6)
-    line(d, [(1024 - a[0], a[1]), (1024 - b[0], b[1])], (205, 210, 218, 255), 7 if big else 6)
-    return save(im, "estrada%s.png" % ("_grande" if big else ""))
+# ------------------------------------------------------------------ estrada, faixas e ponto cego
+def scale_pts(a, b, k, cx=720, cy=361):   # estrada maior (tela 5)
+    f = lambda p: (cx + (p[0] - cx) * k, cy + (p[1] - cy) * k * 0.9 + (k - 1) * 40)
+    return f(a), f(b)
 
-def make_limit(x, y, name):
+def make_estrada(k, suf):
+    ll, lr = scale_pts(*LL, k), scale_pts(*LR, k)
     im, d = layer()
-    d.ellipse(P(x - 24, y - 24, x + 24, y + 24), outline=RED + (255,), width=int(3.5 * SS))
-    return save(im, name)
+    road, rd = layer()
+    rd.polygon(Q([ll[1], lr[1], lr[0], ll[0]]), fill=(22, 25, 32, 230))
+    im = Image.alpha_composite(im, road.filter(ImageFilter.GaussianBlur(4 * SS))); d = ImageDraw.Draw(im)
+    line(d, [((ll[1][0] + lr[1][0]) / 2, ll[1][1]), ((ll[0][0] + lr[0][0]) / 2, ll[0][1])], (40, 44, 54, 255), 2)
+    save(im, "estrada%s.png" % suf)
+    for side, (a, b) in (("esq", ll), ("dir", lr)):
+        for st, col in (("", LANE), ("_aviso", AMBER)):
+            im, d = layer()
+            d.polygon(Q([(a[0] - 5 * k, a[1]), (a[0] + 5 * k, a[1]), (b[0] + 2 * k, b[1]), (b[0] - 2 * k, b[1])]), fill=col + (255,))
+            if st: im = Image.alpha_composite(im.filter(ImageFilter.GaussianBlur(6 * SS)), im)
+            save(im, "faixa_%s%s%s.png" % (side, st, suf))
+        im, d = layer(); sg = -1 if side == "esq" else 1          # ponto cego: brilho azul por fora da faixa
+        for i in range(18):
+            t0, t1 = i / 18, (i + 1) / 18
+            o0, o1 = 10 + 90 * t0, 10 + 90 * t1
+            d.polygon(Q([(a[0] + sg * o0 * k, a[1]), (a[0] + sg * o1 * k, a[1]), (b[0] + sg * o1 * k * 0.45, b[1]), (b[0] + sg * o0 * k * 0.45, b[1])]),
+                      fill=BLIND + (int(200 * (1 - t0) ** 1.4),))
+        save(im.filter(ImageFilter.GaussianBlur(3 * SS)), "ponto_cego_%s%s.png" % (side, suf))
 
-# ------------------------------------------------------------------ luzes (aceso e apagado)
+def make_limite(cx, cy, r, suf):
+    im, d = layer()
+    d.ellipse(P(cx - r, cy - r, cx + r, cy + r), fill=(255, 255, 255, 255), outline=RED + (255,), width=int(r * 0.22 * SS))
+    save(im, "limite%s.png" % suf)
+    im, d = layer()   # placa de fim das restricoes (quando nao ha limite), como na foto
+    d.ellipse(P(cx - r, cy - r, cx + r, cy + r), fill=(250, 250, 250, 255), outline=(30, 30, 30, 255), width=int(2 * SS))
+    for o in (-9, -4.5, 0, 4.5, 9):
+        line(d, [(cx - r * 0.62 + o, cy + r * 0.62 + o), (cx + r * 0.62 + o, cy - r * 0.62 + o)], (40, 40, 40, 255), 1.6)
+    save(im, "sem_limite%s.png" % suf)
+
+# ------------------------------------------------------------------ luzes: so as que aparecem nas fotos
 LUZES = [
-    # dado, x, y, cor, desenho
-    ("seta_esq", 52, 52, GREEN, lambda d, x, y, c: ic_arrow(d, x, y, c, 1)),
-    ("farol_baixo", 100, 52, GREEN, lambda d, x, y, c: ic_lamp(d, x, y, c, False)),
-    ("farol_alto", 148, 52, BLUE, lambda d, x, y, c: ic_lamp(d, x, y, c, True)),
-    ("lanterna", 196, 52, GREEN, ic_park),
-    ("aviso_combustivel", 244, 52, AMBER, lambda d, x, y, c: ic_fuel(d, x, y, c)),
-    ("diferencial", 76, 100, AMBER, lambda d, x, y, c: ic_box(d, x, y, "DIF", c, 11)),
-    ("eixo", 124, 100, AMBER, lambda d, x, y, c: ic_box(d, x, y, "EIXO", c, 10)),
-    ("aviso_ar", 172, 100, RED, lambda d, x, y, c: ic_circle_txt(d, x, y, "AR", c, 13, 11)),
-    ("aviso_bateria", 220, 100, RED, ic_battery),
-    ("freio_mao", 780, 52, RED, ic_brake),
-    ("freio_motor", 828, 52, AMBER, lambda d, x, y, c: ic_box(d, x, y, "FM", c)),
-    ("retarder", 876, 52, AMBER, lambda d, x, y, c: ic_circle_txt(d, x, y, "R", c, 12, 14)),
-    ("cruzeiro", 924, 52, GREEN, ic_cruise),
-    ("seta_dir", 972, 52, GREEN, lambda d, x, y, c: ic_arrow(d, x, y, c, -1)),
-    ("aviso_oleo", 804, 100, RED, ic_oil),
-    ("aviso_agua", 852, 100, RED, ic_water),
-    ("giroflex", 900, 100, AMBER, lambda d, x, y, c: ic_circle_txt(d, x, y, "!", c, 12, 16)),
-    ("aviso_arla", 948, 100, AMBER, ic_adblue),
+    ("farol_baixo", 60, 136, GREEN, ic_lowbeam),
+    ("farol_alto", 110, 136, BLUE, ic_highbeam),
+    ("giroflex", 162, 136, AMBER, ic_beacon),
+    ("aviso_ar", 209, 136, RED, ic_brake_warn),
+    ("freio_mao", 148, 168, RED, ic_parking),
+    ("freio_motor", 195, 168, GREEN, ic_engine_brake),
+    ("retarder", 241, 168, GREEN, ic_retarder),
+    ("seta_esq", 395, 141, GREEN, lambda d, x, y, c: ic_arrow(d, x, y, c, 1)),
+    ("seta_dir", 1039, 141, GREEN, lambda d, x, y, c: ic_arrow(d, x, y, c, -1)),
+    ("aviso_bateria", 1268, 131, RED, ic_battery),
+    ("eixo", 1327, 163, AMBER, lambda d, x, y, c: ic_lift(d, x, y, c, False)),
+    ("eixo_carreta", 1382, 163, AMBER, lambda d, x, y, c: ic_lift(d, x, y, c, True)),
 ]
 
 def make_luz(name, x, y, col, fn):
@@ -327,106 +331,112 @@ def make_luz(name, x, y, col, fn):
         im, d = layer()
         if st == "on":
             g, gd = layer(); fn(gd, x, y, col + (255,))
-            im = Image.alpha_composite(im, g.filter(ImageFilter.GaussianBlur(5 * SS)))
-            d = ImageDraw.Draw(im)
+            im = Image.alpha_composite(im, g.filter(ImageFilter.GaussianBlur(4 * SS))); d = ImageDraw.Draw(im)
             fn(d, x, y, col + (255,))
         else:
             fn(d, x, y, DIM + (255,))
         save(im, "%s_%s.png" % (name, st))
 
-def make_trailer():
-    for st, c in (("on", WHITE), ("off", DIM)):
-        im, d = layer(); ic_trailer(d, 700, 66, c + (255,)); save(im, "carreta_%s.png" % st)
-
 # ------------------------------------------------------------------ gera tudo
+for f in os.listdir(OUT):
+    if f.endswith(".png") or f == "painel.txt": os.remove(os.path.join(OUT, f))
 make_fundo(); make_escalas(); make_bars()
 for i in range(5): make_indicador(i, 5)
 make_tela_viagem(); make_tela_combustivel(); make_tela_temperatura()
-make_estrada(False); make_estrada(True)
-make_limit(600, 385, "limite_1.png"); make_limit(512, 268, "limite_5.png")
+make_estrada(1.0, ""); make_estrada(1.35, "_grande")
+make_limite(854, 330, 28, ""); make_limite(720, 262, 26, "_5")
 for l in LUZES: make_luz(*l)
-make_trailer()
 
-luzes_txt = "\n".join("luz %-18s on=%s_on.png off=%s_off.png" % (n, n, n) for n, *_ in LUZES)
-txt = """# Scania Smart Dash - TruckDash
-# Gerado por tools/gen_scania_smart_dash.py. Pode editar a vontade.
-# Posicoes em pixels do fundo.png (1024 x 600). Linhas com # sao comentarios.
-# Toque longo na metade ESQUERDA da tela recarrega este arquivo e os PNGs.
-#
-# Telas (carrossel): toque na direita = proxima, na esquerda = anterior.
-#   "tela todas" ou "tela 1 2 3": as linhas seguintes aparecem so nessas telas.
-#   1 = principal   2 = viagem   3 = combustivel   4 = temperatura   5 = so velocidade
+luzes_txt = "\n".join("luz %-14s on=%s_on.png off=%s_off.png" % (n, n, n) for n, *_ in LUZES)
+txt = """# Scania Smart Dash - TruckDash  (gerado por tools/gen_scania_smart_dash.py)
+# Painel 1440 x 540 (8:3, igual ao do jogo). Posicoes em pixels do fundo.png.
+# Toque longo na metade ESQUERDA recarrega este arquivo e os PNGs.
+# Telas: 1 principal  2 viagem  3 combustivel  4 temperatura  5 so velocidade
+#   "tela todas" / "tela 1 2 3": as linhas seguintes aparecem so nessas telas.
 
 fundo fundo.png
 
 # ================================================================ todas as telas
 tela todas
 {luzes}
-luz carreta on=carreta_on.png off=carreta_off.png
-texto marcha x=650 y=92 altura=24 cor=FFFFFF alinha=centro fonte=negrito
+
+texto retarder     x=238 y=222 altura=26 cor=40E0D0 alinha=centro
+texto cruzeiro     x=430 y=226 altura=24 cor=40E0D0 alinha=centro vazio="-"
+texto marcha       x=929 y=230 altura=28 cor=C8CDD4 alinha=centro
+
+barra pressao_oleo img=pressao_oleo_cheio.png de=0 ate=6 sentido=direita
+barra oleo         img=oleo_cheio.png         de=40 ate=130 sentido=direita
+barra agua         img=agua_cheio.png         de=40 ate=130 sentido=direita
+texto consumo_inst x=1225 y=329 altura=17 cor=C8CDD4 alinha=esquerda casas=1 sufixo=" l/100km"
+barra consumo_inst img=consumo_cheio.png de=0 ate=80 sentido=direita
 
 # faixa de baixo
-barra combustivel img=combustivel_cheio.png de=0 ate=100 sentido=direita
-texto autonomia   x=248 y=586 altura=22 cor=FFFFFF alinha=esquerda fonte=negrito sufixo=" km"
-texto hora        x=380 y=586 altura=22 cor=FFFFFF alinha=centro fonte=negrito
-texto agua        x=648 y=586 altura=22 cor=FFFFFF alinha=esquerda fonte=negrito sufixo=" °C"
-texto viagem_km   x=860 y=586 altura=20 cor=FFFFFF alinha=direita fonte=negrito casas=1 sufixo=" km"
-barra arla img=arla_cheio.png de=0 ate=100 sentido=direita
+texto autonomia    x=330  y=533 altura=22 cor=FFFFFF alinha=esquerda sufixo=" km"
+texto nav_tempo    x=495  y=533 altura=22 cor=FFFFFF alinha=centro
+texto hora         x=717  y=533 altura=22 cor=FFFFFF alinha=centro
+texto viagem_km    x=1145 y=533 altura=22 cor=FFFFFF alinha=esquerda casas=1 sufixo=" km"
+texto arla         x=1346 y=533 altura=22 cor=40E0D0 alinha=esquerda sufixo=" %"
 
-# ================================================================ telas 1 a 4: escalas e laterais
+# ================================================================ telas 1 a 4: escalas e velocidade
 tela 1 2 3 4
 imagem escalas.png
-barra velocidade img=velocidade_cheio.png de=0 ate=100 sentido=cima
+barra velocidade img=velocidade_cheio.png de=0 ate=120  sentido=cima
 barra rpm        img=rpm_cheio.png        de=0 ate=2500 sentido=cima
-texto velocidade x=512 y=150 altura=96 cor=FFFFFF alinha=centro fonte=normal
-barra ar img=ar_cheio.png de=0 ate=10 sentido=direita
-texto consumo      x=832 y=257 altura=19 cor=FFFFFF alinha=esquerda fonte=negrito casas=1 sufixo=" l/100km"
-texto consumo_hora x=832 y=307 altura=19 cor=FFFFFF alinha=esquerda fonte=negrito casas=1 sufixo=" l/h"
-barra consumo_hora img=consumo_hora_cheio.png de=0 ate=100 sentido=direita
+texto velocidade x=716 y=233 altura=92 cor=FFFFFF alinha=centro
 
 # ================================================================ tela 1: principal
 tela 1
 imagem indicador_1.png
 imagem estrada.png
-# imagem logo.png        (coloque aqui o seu logo, se quiser)
-imagem limite_1.png
-texto limite x=600 y=393 altura=22 cor=FFFFFF alinha=centro fonte=negrito vazio="--"
+# imagem logo.png        (coloque o seu logo aqui, se quiser)
+luz faixa_esq      on=faixa_esq_aviso.png off=faixa_esq.png
+luz faixa_dir      on=faixa_dir_aviso.png off=faixa_dir.png
+luz ponto_cego_esq on=ponto_cego_esq.png
+luz ponto_cego_dir on=ponto_cego_dir.png
+luz limite on=sem_limite.png inverte=sim
+luz limite on=limite.png
+texto limite x=854 y=339 altura=22 cor=000000 alinha=centro fonte=negrito
 
 # ================================================================ tela 2: viagem
 tela 2
 imagem indicador_2.png
 imagem tela_viagem.png
-texto consumo      x=436 y=257 altura=15 cor=FFFFFF alinha=esquerda fonte=negrito casas=1 sufixo=" l/100km"
-texto viagem_tempo x=566 y=257 altura=17 cor=FFFFFF alinha=esquerda fonte=negrito
-texto viagem_vel   x=436 y=319 altura=15 cor=FFFFFF alinha=esquerda fonte=negrito sufixo=" km/h"
-texto viagem_km    x=566 y=319 altura=17 cor=FFFFFF alinha=esquerda fonte=negrito casas=0 sufixo=" km"
+texto consumo      x=596 y=326 altura=19 cor=FFFFFF alinha=esquerda casas=1 sufixo=" l/100km"
+texto viagem_tempo x=756 y=326 altura=19 cor=FFFFFF alinha=esquerda
+texto viagem_vel   x=596 y=396 altura=19 cor=FFFFFF alinha=esquerda sufixo=" km/h"
+texto viagem_km    x=756 y=396 altura=19 cor=FFFFFF alinha=esquerda casas=1 sufixo=" km"
 
 # ================================================================ tela 3: combustivel
 tela 3
 imagem indicador_3.png
 imagem tela_combustivel.png
-texto litros      x=440 y=258 altura=20 cor=FFFFFF alinha=esquerda fonte=negrito sufixo=" l"
+texto litros      x=592 y=311 altura=19 cor=FFFFFF alinha=esquerda sufixo=" l"
 barra combustivel img=combustivel_grande_cheio.png de=0 ate=100 sentido=direita
-texto combustivel x=410 y=316 altura=18 cor=FFFFFF alinha=esquerda fonte=negrito sufixo=" %"
+texto combustivel x=560 y=365 altura=17 cor=FFFFFF alinha=esquerda sufixo=" %"
 barra arla        img=arla_grande_cheio.png de=0 ate=100 sentido=direita
-texto arla        x=410 y=408 altura=18 cor=FFFFFF alinha=esquerda fonte=negrito sufixo=" %"
+texto arla        x=560 y=445 altura=17 cor=FFFFFF alinha=esquerda sufixo=" %"
 
 # ================================================================ tela 4: temperatura
 tela 4
 imagem indicador_4.png
 imagem tela_temperatura.png
-barra agua img=agua_cheio.png de=0 ate=130 sentido=direita
-barra oleo img=oleo_cheio.png de=0 ate=130 sentido=direita
-texto agua x=614 y=252 altura=16 cor=9AA2AB alinha=direita sufixo=" °C"
-texto oleo x=614 y=322 altura=16 cor=9AA2AB alinha=direita sufixo=" °C"
+barra agua img=agua_grande_cheio.png de=0 ate=130 sentido=direita
+barra oleo img=oleo_grande_cheio.png de=0 ate=130 sentido=direita
+texto agua x=880 y=305 altura=16 cor=9AA2AB alinha=direita sufixo=" °C"
+texto oleo x=880 y=379 altura=16 cor=9AA2AB alinha=direita sufixo=" °C"
 
 # ================================================================ tela 5: so velocidade
 tela 5
 imagem indicador_5.png
 imagem estrada_grande.png
-texto velocidade x=512 y=210 altura=120 cor=FFFFFF alinha=centro fonte=normal
-imagem limite_5.png
-texto limite x=512 y=276 altura=22 cor=FFFFFF alinha=centro fonte=negrito vazio="--"
+luz faixa_esq      on=faixa_esq_aviso_grande.png off=faixa_esq_grande.png
+luz faixa_dir      on=faixa_dir_aviso_grande.png off=faixa_dir_grande.png
+luz ponto_cego_esq on=ponto_cego_esq_grande.png
+luz ponto_cego_dir on=ponto_cego_dir_grande.png
+texto velocidade x=720 y=215 altura=120 cor=FFFFFF alinha=centro
+luz limite on=sem_limite_5.png inverte=sim
+luz limite on=limite_5.png
+texto limite x=720 y=270 altura=20 cor=000000 alinha=centro fonte=negrito
 """.format(luzes=luzes_txt)
 with open(os.path.join(OUT, "painel.txt"), "w", encoding="utf-8", newline="\r\n") as f:
     f.write(txt)

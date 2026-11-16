@@ -103,6 +103,10 @@ static void demo_packet(td_packet *p, float t) {
     p->game_time = 8 * 60 + (uint32_t)(t * 2);
     p->oil_temp = 70.0f + 25.0f * r_sin(t * 0.15f);
     if (ph == 2) p->speed_limit = 0;
+    {   /* ADAS na demonstracao: ponto cego e saida de faixa alternando */
+        int a = (int)(t / 2.0f) % 4;
+        if (a == 1) p->flags |= TDF_BLIND_L; else if (a == 2) p->flags |= TDF_BLIND_R; else if (a == 3) p->flags |= TDF_LANE_R;
+    }
 }
 
 void app_frame(surf_t *fb) {

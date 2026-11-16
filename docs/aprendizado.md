@@ -82,6 +82,14 @@
 - O toque guarda a posição X do dedo (`AMotionEvent_getX`): metade direita avança, esquerda volta. A tela escolhida fica salva para a próxima vez.
 - Dados que o jogo não manda (viagem, consumo em l/h) são calculados no tablet a partir do hodômetro e da queda do tanque, com média móvel para não "pular".
 
+### 14. Proporção de cinema e referências reais
+- O painel do jogo tem 1440 x 540 (8:3). Esticar para a tela do tablet tirava a "cara" de painel; agora o app mantém a proporção e deixa faixas pretas em cima e embaixo.
+- As posições vieram do próprio arquivo do painel (`ui/dashboard/scania_2025.sii` do mod instalado), que diz onde fica cada elemento e qual ID do jogo ele usa. As luzes são só as que aparecem nas fotos de referência.
+
+### 15. Ponto cego e faixa: o que o SDK não entrega
+- O painel do jogo tem elementos de ponto cego (IDs 1660 e 1670, desde o ETS2 1.47), mas o SDK de telemetria documentado não tem esses canais.
+- O plugin agora tenta registrar nomes prováveis e escreve no `game.log.txt` quais existem. Se algum responder, o tablet já acende o brilho azul (ponto cego) e a faixa âmbar (saída de faixa).
+
 ## Próximos passos
 - [ ] Testar no tablet real e medir o FPS
 - [ ] Integrar com o **button box** (Arduino Nano)
@@ -89,4 +97,5 @@
 - [x] Motor de painel por camadas PNG
 - [x] Arte do Scania Smart Dash a partir das fotos (5 telas)
 - [ ] Sensor de colisão e avisos de avaria no painel
+- [ ] Confirmar canais de ponto cego/faixa no jogo
 - [ ] Modo noturno

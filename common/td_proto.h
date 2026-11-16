@@ -47,6 +47,11 @@
 #define TDF_CARGO_LOADED    (1u<<25)
 #define TDF_ON_JOB          (1u<<26)
 #define TDF_SDK_ACTIVE      (1u<<27)  /* jogo rodando e enviando dados */
+/* ADAS: o SDK documentado nao tem estes canais; o plugin procura nomes nao documentados */
+#define TDF_BLIND_L         (1u<<28)  /* veiculo no ponto cego esquerdo */
+#define TDF_BLIND_R         (1u<<29)
+#define TDF_LANE_L          (1u<<30)  /* saindo da faixa pela esquerda */
+#define TDF_LANE_R          (1u<<31)
 
 #pragma pack(push, 1)
 typedef struct td_hello {
