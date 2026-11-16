@@ -85,7 +85,7 @@ static void demo_packet(td_packet *p, float t) {
     int ph = (int)(t / 3.0f) % 3;
     memset(p, 0, sizeof *p);
     memcpy(p->game_id, "eut2", 5);
-    memcpy(p->brand, "Scania", 7); memcpy(p->truck_name, "S", 2); memcpy(p->dest_city, "Demo", 5);
+    memcpy(p->brand, "Scania", 7); memcpy(p->brand_id, "scania", 7); p->fwd_gears = 14; p->rev_gears = 2; memcpy(p->truck_name, "S", 2); memcpy(p->dest_city, "Demo", 5);
     p->flags = TDF_SDK_ACTIVE | TDF_ENGINE | TDF_ELECTRIC;
     if (ph == 1) p->flags |= 0x07ffffffu & ~(TDF_PAUSED | TDF_BLINK_L | TDF_BLINK_R);
     if (ph >= 1 && ((int)(t * 2.5f) & 1)) p->flags |= TDF_BLINK_L | TDF_BLINK_R;
@@ -97,7 +97,7 @@ static void demo_packet(td_packet *p, float t) {
     p->air_pressure = 100.0f + 40.0f * r_sin(t * 0.4f); p->oil_pressure = 55; p->oil_temp = 95; p->water_temp = 80.0f + 15.0f * r_sin(t * 0.2f);
     p->battery_voltage = 27.6f; p->odometer = 123456.0f + t * 0.02f; p->nav_distance = 87000; p->nav_time = 4200;
     p->throttle = 0.5f + 0.5f * r_sin(t * 0.8f);
-    p->gear = p->displayed_gear = 1 + (int)(t * 0.7f) % 12;
+    p->gear = p->displayed_gear = 1 + (int)(t * 0.7f) % 14;
     p->retarder = ph == 1 ? 2 : 0; p->retarder_steps = 3;
     p->aux_front = p->aux_roof = ph == 1;
     p->game_time = 8 * 60 + (uint32_t)(t * 2);

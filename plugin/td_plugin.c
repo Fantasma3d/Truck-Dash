@@ -362,42 +362,7 @@ static void reg_s(const char *name, int32_t *dst)    { g_reg(name, SCS_U32_NIL, 
 static void reg_u(const char *name, uint32_t *dst)   { g_reg(name, SCS_U32_NIL, SCS_VALUE_TYPE_u32, SCS_TELEMETRY_CHANNEL_FLAG_none, cb_u32, dst); }
 static void reg_b(const char *name, uint32_t bit)    { g_reg(name, SCS_U32_NIL, SCS_VALUE_TYPE_bool, SCS_TELEMETRY_CHANNEL_FLAG_none, cb_flag, (scs_context_t)(uintptr_t)bit); }
 
-/* Ponto cego e saida de faixa: o painel do jogo mostra (ids 1660/1670 desde o ETS2 1.47), mas o SDK
- * documentado nao tem esses canais. Tentamos nomes provaveis; o resultado vai para o game.log.txt.
- * Codigos: 0 = achou e esta funcionando, -4 = nao existe, -5 = existe mas com outro tipo. */
-static void probe_adas(void) {
-    static const struct { const char *n; uint32_t bit; } C[] = {
-        { "truck.blind_spot.left", TDF_BLIND_L }, { "truck.blind_spot.right", TDF_BLIND_R },
-        { "truck.blindspot.left", TDF_BLIND_L }, { "truck.blindspot.right", TDF_BLIND_R },
-        { "truck.adas.blind_spot.left", TDF_BLIND_L }, { "truck.adas.blind_spot.right", TDF_BLIND_R },
-        { "truck.indicator.blind_spot.left", TDF_BLIND_L }, { "truck.indicator.blind_spot.right", TDF_BLIND_R },
-        { "dev.truck.blind_spot.left", TDF_BLIND_L }, { "dev.truck.blind_spot.right", TDF_BLIND_R },
-        { "truck.lane_departure.left", TDF_LANE_L }, { "truck.lane_departure.right", TDF_LANE_R },
-        { "truck.adas.lane_departure.left", TDF_LANE_L }, { "truck.adas.lane_departure.right", TDF_LANE_R },
-        { "truck.lane_assist", 0 }, { "truck.lane_keeping", 0 }, { "truck.adas.lane_keeping", 0 },
-        { "truck.adaptive_cruise_control", 0 }, { "truck.adas.acc", 0 }, { "dev.truck.lane_assist", 0 },
-    };
-    char b[160];
-    for (unsigned i = 0; i < sizeof C / sizeof C[0]; i++) {
-        scs_result_t r = g_reg(C[i].n, SCS_U32_NIL, SCS_VALUE_TYPE_bool, SCS_TELEMETRY_CHANNEL_FLAG_none,
-                               cb_flag, (scs_context_t)(uintptr_t)C[i].bit);
-        if (r == -4) continue;
-        {   /* sem CRT no Windows: monta a mensagem na mao */
-            const char *pre = "TruckDash: canal ADAS ", *mid = " respondeu ";
-            int k = 0, v = (int)r, j;
-            char num[12]; int nn = 0;
-            for (j = 0; pre[j] && k < 150; j++) b[k++] = pre[j];
-            for (j = 0; C[i].n[j] && k < 150; j++) b[k++] = C[i].n[j];
-            for (j = 0; mid[j] && k < 150; j++) b[k++] = mid[j];
-            if (v < 0) { b[k++] = '-'; v = -v; }
-            do { num[nn++] = (char)('0' + v % 10); v /= 10; } while (v && nn < 11);
-            while (nn) b[k++] = num[--nn];
-            b[k] = 0;
-        }
-        logmsg(b);
-    }
-    logmsg("TruckDash: busca de canais de ponto cego/faixa concluida");
-}
+/* Ponto cego e saida de faixa: testado no ETS2 1.62 - o SDK nao tem esses canais (todos 'not found'). */
 
 /* ------------------------------------------------------------------ */
 /* eventos */
@@ -569,7 +534,6 @@ EXPORT scs_result_t SCSAPIFUNC scs_telemetry_init(const scs_u32_t version, const
     reg_b("truck.differential_lock", TDF_DIFF_LOCK);
     reg_b("truck.lift_axle", TDF_LIFT_AXLE);
     reg_b("truck.trailer.lift_axle", TDF_TRAILER_LIFT);
-    probe_adas();
 
     net_open();
     logmsg("TruckDash: plugin iniciado - enviando telemetria para o tablet (UDP 45455)");

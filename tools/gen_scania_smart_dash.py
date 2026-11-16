@@ -59,8 +59,12 @@ def lx(y): return lerp(L_BOT[0], L_TOP[0], (L_BOT[1] - y) / (L_BOT[1] - L_TOP[1]
 def rx(y): return lerp(R_BOT[0], R_TOP[0], (R_BOT[1] - y) / (R_BOT[1] - R_TOP[1]))
 def vy(v): return YB - (YB - YT) * v / VEL_MAX
 def ry(r): return YB - (YB - YT) * r / RPM_MAX
-LL = ((557, 469), (714, 361))             # faixas da estrada (foto sem logo)
-LR = ((987, 469), (827, 361))
+VP = (720, 300)                           # ponto de fuga: o mesmo das linhas do fundo, do logo e da estrada
+def road(y_bot, half, y_top=361):
+    """linhas da estrada saindo de (720 +- half, y_bot) em direcao ao ponto de fuga, cortadas em y_top"""
+    t = (y_bot - y_top) / (y_bot - VP[1])
+    l0, r0 = (VP[0] - half, y_bot), (VP[0] + half, y_bot)
+    return (l0, (lerp(l0[0], VP[0], t), y_top)), (r0, (lerp(r0[0], VP[0], t), y_top)), t
 
 # ------------------------------------------------------------------ icones (desenho proprio, no estilo das fotos)
 def ic_lowbeam(d, x, y, c):
@@ -188,7 +192,7 @@ def make_fundo():
     im.putalpha(base.split()[3])
     d = ImageDraw.Draw(im)
     for x in (-500, -120, 300, 560, 880, 1140, 1560, 1940):
-        line(d, [(720, 300), (x, 540)], (30, 40, 58, 255), 1)
+        line(d, [VP, (x, 540)], (30, 40, 58, 255), 1)
     line(d, [(480, 30), (960, 30)], (44, 50, 60, 255), 3)
     # faixa de baixo
     ic_fuel(d, 65, 520, WHITE)
@@ -274,38 +278,33 @@ def make_tela_temperatura():
     return save(im, "tela_temperatura.png")
 
 # ------------------------------------------------------------------ estrada, faixas e ponto cego
-def scale_pts(a, b, k, cx=720, cy=361):   # estrada maior (tela 5)
-    f = lambda p: (cx + (p[0] - cx) * k, cy + (p[1] - cy) * k * 0.9 + (k - 1) * 40)
-    return f(a), f(b)
+def toward_vp(p, t):
+    return (lerp(p[0], VP[0], t), lerp(p[1], VP[1], t))
 
-def make_estrada(k, suf):
-    ll, lr = scale_pts(*LL, k), scale_pts(*LR, k)
+def make_estrada(y_bot, half, suf):
+    ll, lr, t = road(y_bot, half)
     im, d = layer()
-    road, rd = layer()
+    road_im, rd = layer()
     rd.polygon(Q([ll[1], lr[1], lr[0], ll[0]]), fill=(22, 25, 32, 230))
-    im = Image.alpha_composite(im, road.filter(ImageFilter.GaussianBlur(4 * SS))); d = ImageDraw.Draw(im)
-    line(d, [((ll[1][0] + lr[1][0]) / 2, ll[1][1]), ((ll[0][0] + lr[0][0]) / 2, ll[0][1])], (40, 44, 54, 255), 2)
+    im = Image.alpha_composite(im, road_im.filter(ImageFilter.GaussianBlur(4 * SS))); d = ImageDraw.Draw(im)
+    line(d, [(VP[0], ll[1][1]), (VP[0], y_bot)], (40, 44, 54, 255), 2)
     save(im, "estrada%s.png" % suf)
+    w0 = 5 * half / 215.0                                          # meia largura da linha embaixo
     for side, (a, b) in (("esq", ll), ("dir", lr)):
         sg = -1 if side == "esq" else 1
-        poly = [(a[0] - 5 * k, a[1]), (a[0] + 5 * k, a[1]), (b[0] + 2 * k, b[1]), (b[0] - 2 * k, b[1])]
+        ia, oa = (a[0] - sg * w0, a[1]), (a[0] + sg * w0, a[1])      # bordas apontando para o ponto de fuga
+        poly = [ia, oa, toward_vp(oa, t), toward_vp(ia, t)]
         im, d = layer(); d.polygon(Q(poly), fill=LANE + (255,)); save(im, "faixa_%s%s.png" % (side, suf))
-        # saida de faixa: a propria linha em amarelo, com brilho
         im, d = layer(); d.polygon(Q(poly), fill=AMBER + (255,))
         save(Image.alpha_composite(im.filter(ImageFilter.GaussianBlur(5 * SS)), im), "faixa_%s_aviso%s.png" % (side, suf))
-        # ponto cego: a linha em laranja + brilho saindo dela para fora, colado na linha
-        im, d = layer()
-        ea, eb = (a[0] + sg * 5 * k, a[1]), (b[0] + sg * 2 * k, b[1])      # borda externa da linha
+        im, d = layer()                                             # ponto cego: brilho laranja saindo da linha
         for i in range(16):
             t0, t1 = i / 16, (i + 1) / 16
-            wa, wb = 70 * k, 26 * k                                         # largura do brilho (perto / longe)
-            d.polygon(Q([(ea[0] + sg * wa * t0, ea[1]), (ea[0] + sg * wa * t1, ea[1]),
-                         (eb[0] + sg * wb * t1, eb[1]), (eb[0] + sg * wb * t0, eb[1])]),
-                      fill=ORANGE + (int(170 * (1 - t0) ** 1.6),))
+            p0, p1 = (oa[0] + sg * 75 * half / 215.0 * t0, oa[1]), (oa[0] + sg * 75 * half / 215.0 * t1, oa[1])
+            d.polygon(Q([p0, p1, toward_vp(p1, t), toward_vp(p0, t)]), fill=ORANGE + (int(170 * (1 - t0) ** 1.6),))
         im = im.filter(ImageFilter.GaussianBlur(2 * SS))
         line_im, ld = layer(); ld.polygon(Q(poly), fill=ORANGE + (255,))
-        im = Image.alpha_composite(im, line_im.filter(ImageFilter.GaussianBlur(4 * SS)))
-        im = Image.alpha_composite(im, line_im)
+        im = Image.alpha_composite(Image.alpha_composite(im, line_im.filter(ImageFilter.GaussianBlur(4 * SS))), line_im)
         save(im, "ponto_cego_%s%s.png" % (side, suf))
 
 def make_limite(cx, cy, r, suf):
@@ -351,7 +350,7 @@ for f in os.listdir(OUT):
 make_fundo(); make_escalas(); make_bars()
 for i in range(5): make_indicador(i, 5)
 make_tela_viagem(); make_tela_combustivel(); make_tela_temperatura()
-make_estrada(1.0, ""); make_estrada(1.35, "_grande")
+make_estrada(469, 215, ""); make_estrada(500, 330, "_grande")
 make_limite(854, 330, 28, ""); make_limite(720, 262, 26, "_5")
 for l in LUZES: make_luz(*l)
 
@@ -396,11 +395,12 @@ texto velocidade x=716 y=233 altura=92 cor=FFFFFF alinha=centro
 tela 1
 imagem indicador_1.png
 imagem estrada.png
-# imagem logo.png        (coloque o seu logo aqui, se quiser)
 luz faixa_esq      on=faixa_esq_aviso.png off=faixa_esq.png
 luz faixa_dir      on=faixa_dir_aviso.png off=faixa_dir.png
 luz ponto_cego_esq on=ponto_cego_esq.png
 luz ponto_cego_dir on=ponto_cego_dir.png
+# seu logo, no lugar do emblema; frente=sim deixa ele por cima das linhas acesas
+# imagem logo.png cx=720 cy=322 altura=104 largura=190 frente=sim
 luz limite on=sem_limite.png inverte=sim
 luz limite on=limite.png
 texto limite x=854 y=339 altura=22 cor=000000 alinha=centro fonte=negrito

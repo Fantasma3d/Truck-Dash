@@ -421,6 +421,7 @@ static void parse_line(skin_t *k, int line, char **tok, int n) {
         /* opcional: redimensiona e centraliza (logo). altura/largura valem para o desenho, sem as bordas transparentes */
         it->cx = kvf(tok + 2, n - 2, "cx", 0); it->cy = kvf(tok + 2, n - 2, "cy", 0);
         it->size = kvf(tok + 2, n - 2, "altura", 0); it->a0 = kvf(tok + 2, n - 2, "largura", 0);
+        { const char *fv = kv(tok + 2, n - 2, "frente"); it->invert = fv && (fv[0] == 's' || fv[0] == '1'); }
         img_load(k, line, tok[1], &it->on, 1);
         return;
     }
@@ -563,7 +564,7 @@ static void build_page(skin_t *k, int page) {
     for (int i = 0; i < k->n; i++) {
         item_t *it = &k->it[i];
         if (!(it->telas & bit)) continue;
-        if (it->kind == K_IMG) blit(&k->cache, &it->s_on, 0, 0, w, h);
+        if (it->kind == K_IMG) { if (!it->invert) blit(&k->cache, &it->s_on, 0, 0, w, h); }
         else if (it->kind == K_LUZ) blit(&k->cache, &it->s_off, 0, 0, w, h);
     }
     k->cache_page = page;
@@ -635,15 +636,33 @@ static int light_on(const dash_t *d, const item_t *it) {
     return it->invert ? !on : on;
 }
 
+/* nome da marcha como no painel do jogo, pelo tipo de cambio (arquivos gearbox_layout_*.sii do perfil) */
+static void gear_name(const td_packet *p, char *b, int n) {
+    static const char *R6[] = { "1L", "1H", "2L", "2H", "3L", "3H", "4L", "4H", "5L", "5H", "6L", "6H", "7L", "7H", "8L", "8H" };
+    static const char *E13[] = { "L", "1", "2", "3", "4" };
+    int g = p->displayed_gear ? p->displayed_gear : p->gear, fw = p->fwd_gears, rv = p->rev_gears;
+    int split = !strcmp(p->brand_id, "scania") || !strcmp(p->brand_id, "volvo") || fw == 13 || fw == 18;
+    if (!g) { snprintf(b, n, "N"); return; }
+    if (split && g > 0) {
+        if ((fw == 12 || fw == 16) && g <= fw) { snprintf(b, n, "%s", R6[g - 1]); return; }
+        if (fw == 14) { if (g <= 2) snprintf(b, n, "C%d", g); else snprintf(b, n, "%s", R6[g - 3]); return; }
+        if (fw == 18) { if (g <= 2) snprintf(b, n, "%s", g == 1 ? "LL" : "LH"); else snprintf(b, n, "%s", R6[g - 3]); return; }
+        if (fw == 13) { if (g <= 5) snprintf(b, n, "%s", E13[g - 1]); else snprintf(b, n, "%s", R6[g - 6 + 8]); return; }
+    }
+    if (split && g < 0) {
+        static const char *R2[] = { "RL", "RH" }, *R4V[] = { "RLL", "RLH", "RHL", "RHH" }, *R4E[] = { "R1L", "R1H", "R2L", "R2H" };
+        int r = -g;
+        if (rv == 2 && r <= 2) { snprintf(b, n, "%s", R2[r - 1]); return; }
+        if (rv == 4 && r <= 4) { snprintf(b, n, "%s", fw == 18 ? R4E[r - 1] : R4V[r - 1]); return; }
+    }
+    if (g > 0) snprintf(b, n, "%d", g); else snprintf(b, n, "R%d", -g);
+}
+
 static int text_of(const dash_t *d, const item_t *it, char *b, int n) {
     const td_packet *p = &d->p;
     int sm;
     switch (it->data) {
-    case D_MARCHA: {
-        int g = p->displayed_gear ? p->displayed_gear : p->gear;
-        if (g > 0) snprintf(b, n, "%d", g); else if (g < 0) snprintf(b, n, "R%d", -g); else snprintf(b, n, "N");
-        break;
-    }
+    case D_MARCHA: gear_name(p, b, n); break;
     case D_HORA: snprintf(b, n, "%02d:%02d", (int)((p->game_time / 60) % 24), (int)(p->game_time % 60)); break;
     case D_NAV_TEMPO: { int m = (int)(p->nav_time / 60.0f); snprintf(b, n, "%02d:%02d", m / 60, m % 60); break; }
     case D_VIAGEM_TEMPO: { int m = (int)d->trip_min; snprintf(b, n, "%02d:%02d", m / 60, m % 60); break; }
@@ -673,7 +692,8 @@ void skin_draw(surf_t *fb, skin_t *k, const dash_t *d, int page) {
     float s = k->s;
     for (int i = 0; i < k->n; i++) {
         const item_t *it = &k->it[i];
-        if (!(it->telas & bit) || it->kind == K_IMG) continue;
+        if (!(it->telas & bit)) continue;
+        if (it->kind == K_IMG) { if (it->invert) blit(fb, &it->s_on, 0, 0, fb->w, fb->h); continue; }
         if (it->kind == K_LUZ) { if (light_on(d, it)) blit(fb, &it->s_on, 0, 0, fb->w, fb->h); continue; }
         if (it->kind == K_TEXTO) {
             char b[96];

@@ -90,6 +90,11 @@
 - O painel do jogo tem elementos de ponto cego (IDs 1660 e 1670, desde o ETS2 1.47), mas o SDK de telemetria documentado não tem esses canais.
 - O plugin agora tenta registrar nomes prováveis e escreve no `game.log.txt` quais existem. Se algum responder, o tablet já acende o brilho azul (ponto cego) e a faixa âmbar (saída de faixa).
 
+### 16. Resultado do teste no jogo e nomes das marchas
+- O `game.log.txt` respondeu `channel ... not found` para todos os 20 nomes testados: no ETS2 1.62 o SDK não entrega ponto cego nem saída de faixa. A busca foi retirada do plugin para não sujar o log; as linhas do painel funcionam só na demonstração.
+- Perspectiva: estrada, linhas, brilho do ponto cego e fundo agora partem do mesmo ponto de fuga (720, 300).
+- Marchas: os arquivos `gearbox_layout_*.sii` do perfil mostram os nomes de cada câmbio. Pelo número de marchas que o jogo informa (ex.: 14 à frente e 2 à ré = Scania 12+2) o app escreve C1, C2, 1L, 1H... RL, RH.
+
 ## Próximos passos
 - [ ] Testar no tablet real e medir o FPS
 - [ ] Integrar com o **button box** (Arduino Nano)
@@ -97,5 +102,5 @@
 - [x] Motor de painel por camadas PNG
 - [x] Arte do Scania Smart Dash a partir das fotos (5 telas)
 - [ ] Sensor de colisão e avisos de avaria no painel
-- [ ] Confirmar canais de ponto cego/faixa no jogo
+- [x] Confirmar canais de ponto cego/faixa no jogo (não existem no SDK)
 - [ ] Modo noturno
